@@ -1,69 +1,264 @@
-import Image from "next/image";
+// src/app/page.tsx
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { AddressSearch } from "@/features/estimate/components/AddressSearch";
+import { RoofMap } from "@/features/estimate/components/RoofMap";
+import { QuoteForm } from "@/features/estimate/components/QuoteForm";
+import { getRoofData } from "@/lib/google-solar";
+import { computeAreaSqFt } from "@/lib/polygon-area";
+import { DEFAULT_CENTER } from "@/lib/google-maps";
+import { DetectedPitch } from "@/types/roofing";
+
+type AppStep = "map" | "quote";
+
+export default function SalesEstimatorPage() {
+  const [step, setStep] = useState<AppStep>("map");
+  const [location, setLocation] = useState(DEFAULT_CENTER);
+  const [selectedAddress, setSelectedAddress] = useState("");
+  const [detectedArea, setDetectedArea] = useState(2000);
+  const [liveArea, setLiveArea] = useState<number | undefined>(undefined);
+  const [roofPolygon, setRoofPolygon] = useState<{ lat: number; lng: number }[] | undefined>(undefined);
+  const [suggestedPitch, setSuggestedPitch] = useState<DetectedPitch>("medium");
+  const [mapZoom, setMapZoom] = useState(11);
+  const [roofError, setRoofError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleAddressSelect = async (address: string, lat: number, lng: number) => {
+    setLocation({ lat, lng });
+    setSelectedAddress(address);
+    setMapZoom(19);
+    setRoofError(null);
+    setIsLoading(true);
+    setLiveArea(undefined);
+
+    try {
+      const data = await getRoofData(lat, lng);
+      if (!data.areaSqFt || data.areaSqFt < 300) {
+        setRoofError("no_building");
+        return;
+      }
+      setDetectedArea(data.areaSqFt);
+      setRoofPolygon(data.coords);
+
+      if (data.pitchDegrees < 5) setSuggestedPitch("flat");
+      else if (data.pitchDegrees < 15) setSuggestedPitch("shallow");
+      else if (data.pitchDegrees < 30) setSuggestedPitch("medium");
+      else setSuggestedPitch("steep");
+    } catch {
+      setRoofError("api_error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePolygonEdit = (newCoords: { lat: number; lng: number }[]) => {
+    setRoofPolygon(newCoords);
+    const recalculated = computeAreaSqFt(newCoords);
+    if (recalculated > 0) {
+      setLiveArea(recalculated);
+    }
+  };
+
+  const handleReset = () => {
+    setStep("map");
+    setSelectedAddress("");
+    setRoofPolygon(undefined);
+    setLiveArea(undefined);
+    setLocation(DEFAULT_CENTER);
+    setRoofError(null);
+    setMapZoom(11);
+  };
+
+  const currentSqFt = liveArea ?? detectedArea;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {/* Header / Navbar */}
+        <header className="bg-[#00589e] text-white py-4 px-6 shadow-md border-b border-blue-900 sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-white p-2 rounded-lg text-[#00589e]">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-black uppercase tracking-wider leading-none">
+                  Advanced Roofing
+                </h1>
+                <p className="text-xs text-blue-100 font-medium tracking-tight">
+                  Sales Agent Estimator Platform
+                </p>
+              </div>
+            </div>
+
+            {selectedAddress && (
+                <button
+                    onClick={handleReset}
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border border-white/20 cursor-pointer"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                  </svg>
+                  New Search
+                </button>
+            )}
+          </div>
+        </header>
+
+        {/* Stepper Indicator */}
+        <div className="bg-white border-b border-gray-200 py-3 px-6 shadow-xs">
+          <div className="max-w-7xl mx-auto flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-3 sm:gap-6">
+              <button
+                  onClick={() => setStep("map")}
+                  className={`flex items-center gap-2 transition-colors cursor-pointer ${
+                      step === "map" ? "text-[#00589e]" : "text-gray-400 hover:text-gray-700"
+                  }`}
+              >
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                  step === "map" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
+              }`}>1</span>
+                <span>Address & Roof Detection</span>
+              </button>
+
+              <span className="text-gray-300">/</span>
+
+              <button
+                  disabled={!selectedAddress}
+                  onClick={() => selectedAddress && setStep("quote")}
+                  className={`flex items-center gap-2 transition-colors ${
+                      step === "quote"
+                          ? "text-[#00589e]"
+                          : selectedAddress
+                              ? "text-gray-400 hover:text-gray-700 cursor-pointer"
+                              : "text-gray-300 cursor-not-allowed"
+                  }`}
+              >
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                  step === "quote" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
+              }`}>2</span>
+                <span>Estimate & Specifications</span>
+              </button>
+            </div>
+
+            {selectedAddress && (
+                <div className="hidden sm:flex items-center gap-2 text-gray-700 font-bold">
+                  <span className="text-gray-400 text-[10px] uppercase">Detected Area:</span>
+                  <span className="bg-blue-50 text-[#00589e] px-2.5 py-1 rounded border border-blue-100 font-black">
+                {currentSqFt.toLocaleString()} sq ft
+              </span>
+                </div>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {/* Main Workspace */}
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+          {step === "map" ? (
+              /* PASO 1: Búsqueda y Mapa a Ancho Completo */
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
+                    Search Property Address
+                  </label>
+                  <AddressSearch
+                      onAddressSelect={handleAddressSelect}
+                      variant="default"
+                      placeholder="Type customer address to detect roof & estimate..."
+                  />
+                </section>
+
+                {roofError && (
+                    <div className="p-4 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl">
+                      <p className="text-sm font-bold text-amber-800">
+                        {roofError === "no_building"
+                            ? "No roof or building could be clearly detected at this address. Please search another address or adjust points manually."
+                            : "Unable to retrieve solar data for this location. You can still outline the roof manually on the map."}
+                      </p>
+                    </div>
+                )}
+
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      Roof Boundary Detection
+                    </h2>
+                    {selectedAddress && (
+                        <span className="text-xs font-semibold bg-blue-50 text-[#00589e] px-3 py-1 rounded-md border border-blue-100 truncate">
+                    {selectedAddress}
+                  </span>
+                    )}
+                  </div>
+
+                  <div className="min-h-[520px] rounded-xl overflow-hidden border border-gray-200 relative">
+                    <RoofMap
+                        center={location}
+                        zoom={mapZoom}
+                        polygonCoords={roofPolygon}
+                        onPolygonEdit={handlePolygonEdit}
+                        hideControls={!selectedAddress}
+                    />
+
+                    {isLoading && (
+                        <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 gap-3">
+                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#00589e] border-t-transparent"></div>
+                          <p className="text-sm font-bold text-[#00589e] uppercase tracking-wider">
+                            Analyzing roof structures...
+                          </p>
+                        </div>
+                    )}
+                  </div>
+
+                  {selectedAddress && !isLoading && roofPolygon && (
+                      <div className="pt-2">
+                        <button
+                            onClick={() => setStep("quote")}
+                            className="w-full py-5 bg-[#00589e] hover:bg-[#00437a] text-white font-black text-lg uppercase tracking-widest rounded-xl cursor-pointer transition-all active:scale-[0.99] shadow-lg flex items-center justify-center gap-3"
+                        >
+                          Continue to Estimate Details →
+                        </button>
+                      </div>
+                  )}
+                </div>
+              </div>
+          ) : (
+              /* PASO 2: Cotizador a Ancho Completo */
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                  <button
+                      onClick={() => setStep("map")}
+                      className="flex items-center gap-2 text-gray-600 hover:text-[#00589e] font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="19" y1="12" x2="5" y2="12" />
+                      <polyline points="12 19 5 12 12 5" />
+                    </svg>
+                    Back to Map & Roof Boundary
+                  </button>
+
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selected Property</p>
+                    <p className="text-xs font-bold text-gray-800 truncate max-w-md">{selectedAddress}</p>
+                  </div>
+                </div>
+
+                <QuoteForm
+                    initialArea={detectedArea}
+                    initialPitch={suggestedPitch}
+                    liveArea={liveArea}
+                    address={selectedAddress}
+                />
+              </div>
+          )}
+        </main>
+      </div>
   );
 }

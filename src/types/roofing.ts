@@ -1,3 +1,4 @@
+// src/types/roofing.ts
 export type RoofMaterial = 'asphalt_shingle' | 'flat_tpo';
 
 export type RoofPitch = 'shallow' | 'medium' | 'steep' | 'high_steep';
