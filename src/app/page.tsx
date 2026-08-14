@@ -8,18 +8,18 @@ import { QuoteForm } from "@/features/estimate/components/QuoteForm";
 import { getRoofData } from "@/lib/google-solar";
 import { computeAreaSqFt } from "@/lib/polygon-area";
 import { DEFAULT_CENTER } from "@/lib/google-maps";
-import { DetectedPitch } from "@/types/roofing";
+import { RoofSection, DetectedPitch } from "@/types/roofing";
 
 type AppStep = "map" | "quote";
+
+const SECTION_COLORS = ["#00589e", "#e65100", "#2e7d32", "#6a1b9a", "#c2185b"];
 
 export default function SalesEstimatorPage() {
   const [step, setStep] = useState<AppStep>("map");
   const [location, setLocation] = useState(DEFAULT_CENTER);
   const [selectedAddress, setSelectedAddress] = useState("");
-  const [detectedArea, setDetectedArea] = useState(2000);
-  const [liveArea, setLiveArea] = useState<number | undefined>(undefined);
-  const [roofPolygon, setRoofPolygon] = useState<{ lat: number; lng: number }[] | undefined>(undefined);
-  const [suggestedPitch, setSuggestedPitch] = useState<DetectedPitch>("medium");
+  const [sections, setSections] = useState<RoofSection[]>([]);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [mapZoom, setMapZoom] = useState(11);
   const [roofError, setRoofError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +30,6 @@ export default function SalesEstimatorPage() {
     setMapZoom(19);
     setRoofError(null);
     setIsLoading(true);
-    setLiveArea(undefined);
 
     try {
       const data = await getRoofData(lat, lng);
@@ -38,13 +37,26 @@ export default function SalesEstimatorPage() {
         setRoofError("no_building");
         return;
       }
-      setDetectedArea(data.areaSqFt);
-      setRoofPolygon(data.coords);
 
-      if (data.pitchDegrees < 5) setSuggestedPitch("flat");
-      else if (data.pitchDegrees < 15) setSuggestedPitch("shallow");
-      else if (data.pitchDegrees < 30) setSuggestedPitch("medium");
-      else setSuggestedPitch("steep");
+      let pitch: DetectedPitch = "medium";
+      if (data.pitchDegrees < 5) pitch = "flat";
+      else if (data.pitchDegrees < 15) pitch = "shallow";
+      else if (data.pitchDegrees < 30) pitch = "medium";
+      else pitch = "steep";
+
+      const initialSection: RoofSection = {
+        id: "section-main",
+        name: "Main Roof",
+        coords: data.coords,
+        areaSqFt: data.areaSqFt,
+        material: pitch === "flat" ? "flat_tpo" : "asphalt_shingle",
+        pitch: pitch === "flat" ? "shallow" : pitch,
+        layersToRemove: 1,
+        color: SECTION_COLORS[0],
+      };
+
+      setSections([initialSection]);
+      setActiveSectionId(initialSection.id);
     } catch {
       setRoofError("api_error");
     } finally {
@@ -52,25 +64,62 @@ export default function SalesEstimatorPage() {
     }
   };
 
-  const handlePolygonEdit = (newCoords: { lat: number; lng: number }[]) => {
-    setRoofPolygon(newCoords);
-    const recalculated = computeAreaSqFt(newCoords);
-    if (recalculated > 0) {
-      setLiveArea(recalculated);
-    }
+  const handleUpdateCoords = (id: string, newCoords: { lat: number; lng: number }[]) => {
+    const newArea = computeAreaSqFt(newCoords);
+    setSections((prev) =>
+        prev.map((sec) =>
+            sec.id === id ? { ...sec, coords: newCoords, areaSqFt: newArea || sec.areaSqFt } : sec
+        )
+    );
+  };
+
+  const handleAddSection = () => {
+    const offset = (sections.length + 1) * 0.0001;
+    const centerLat = location.lat;
+    const centerLng = location.lng;
+
+    // Crear un cuadrado pequeño por defecto cerca del centro del mapa
+    const defaultCoords = [
+      { lat: centerLat + offset, lng: centerLng + offset },
+      { lat: centerLat + offset, lng: centerLng + offset + 0.00015 },
+      { lat: centerLat + offset - 0.00015, lng: centerLng + offset + 0.00015 },
+      { lat: centerLat + offset - 0.00015, lng: centerLng + offset },
+    ];
+
+    const newId = `section-${Date.now()}`;
+    const newSection: RoofSection = {
+      id: newId,
+      name: `Section ${String.fromCharCode(65 + sections.length)}`, // ej. Section B, Section C
+      coords: defaultCoords,
+      areaSqFt: computeAreaSqFt(defaultCoords) || 400,
+      material: "asphalt_shingle",
+      pitch: "medium",
+      layersToRemove: 1,
+      color: SECTION_COLORS[sections.length % SECTION_COLORS.length],
+    };
+
+    setSections((prev) => [...prev, newSection]);
+    setActiveSectionId(newId);
+  };
+
+  const handleRemoveSection = (id: string) => {
+    if (sections.length <= 1) return; // Mantener al menos 1 sección
+    const filtered = sections.filter((s) => s.id !== id);
+    setSections(filtered);
+    setActiveSectionId(filtered[0].id);
   };
 
   const handleReset = () => {
     setStep("map");
     setSelectedAddress("");
-    setRoofPolygon(undefined);
-    setLiveArea(undefined);
+    setSections([]);
+    setActiveSectionId(null);
     setLocation(DEFAULT_CENTER);
     setRoofError(null);
     setMapZoom(11);
   };
 
-  const currentSqFt = liveArea ?? detectedArea;
+  const totalSqFt = sections.reduce((acc, s) => acc + s.areaSqFt, 0);
 
   return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -122,7 +171,7 @@ export default function SalesEstimatorPage() {
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
                   step === "map" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
               }`}>1</span>
-                <span>Address & Roof Detection</span>
+                <span>Address & Multi-Roof Boundaries</span>
               </button>
 
               <span className="text-gray-300">/</span>
@@ -147,9 +196,9 @@ export default function SalesEstimatorPage() {
 
             {selectedAddress && (
                 <div className="hidden sm:flex items-center gap-2 text-gray-700 font-bold">
-                  <span className="text-gray-400 text-[10px] uppercase">Detected Area:</span>
+                  <span className="text-gray-400 text-[10px] uppercase">Total Roof Area:</span>
                   <span className="bg-blue-50 text-[#00589e] px-2.5 py-1 rounded border border-blue-100 font-black">
-                {currentSqFt.toLocaleString()} sq ft
+                {totalSqFt.toLocaleString()} sq ft ({sections.length} {sections.length === 1 ? "section" : "sections"})
               </span>
                 </div>
             )}
@@ -159,7 +208,6 @@ export default function SalesEstimatorPage() {
         {/* Main Workspace */}
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
           {step === "map" ? (
-              /* PASO 1: Búsqueda y Mapa a Ancho Completo */
               <div className="space-y-6 animate-in fade-in duration-300">
                 <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
@@ -202,8 +250,12 @@ export default function SalesEstimatorPage() {
                     <RoofMap
                         center={location}
                         zoom={mapZoom}
-                        polygonCoords={roofPolygon}
-                        onPolygonEdit={handlePolygonEdit}
+                        sections={sections}
+                        activeSectionId={activeSectionId}
+                        onSelectSection={setActiveSectionId}
+                        onUpdateSectionCoords={handleUpdateCoords}
+                        onAddSection={handleAddSection}
+                        onRemoveSection={handleRemoveSection}
                         hideControls={!selectedAddress}
                     />
 
@@ -217,7 +269,7 @@ export default function SalesEstimatorPage() {
                     )}
                   </div>
 
-                  {selectedAddress && !isLoading && roofPolygon && (
+                  {selectedAddress && !isLoading && sections.length > 0 && (
                       <div className="pt-2">
                         <button
                             onClick={() => setStep("quote")}
@@ -230,7 +282,6 @@ export default function SalesEstimatorPage() {
                 </div>
               </div>
           ) : (
-              /* PASO 2: Cotizador a Ancho Completo */
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                   <button
@@ -241,7 +292,7 @@ export default function SalesEstimatorPage() {
                       <line x1="19" y1="12" x2="5" y2="12" />
                       <polyline points="12 19 5 12 12 5" />
                     </svg>
-                    Back to Map & Roof Boundary
+                    Back to Map & Roof Boundaries
                   </button>
 
                   <div className="text-right">
@@ -250,10 +301,10 @@ export default function SalesEstimatorPage() {
                   </div>
                 </div>
 
+                {/* QuoteForm multi-sección (Siguiente paso: actualizar el QuoteForm para editar cada sección) */}
                 <QuoteForm
-                    initialArea={detectedArea}
-                    initialPitch={suggestedPitch}
-                    liveArea={liveArea}
+                    sections={sections}
+                    onUpdateSections={setSections}
                     address={selectedAddress}
                 />
               </div>
