@@ -55,6 +55,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     const [rawStatus, setRawStatus] = useState<string | null>(null);
     const [heading, setHeading] = useState(0);
     const [camPitch, setCamPitch] = useState(0); // ángulo de cámara (mirar arriba/abajo), no confundir con el pitch del techo
+    const [fov, setFov] = useState(90); // campo de visión — más chico = más zoom
 
     const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -106,7 +107,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
             });
     }, [apiKey, location.lat, location.lng]);
 
-    const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=${IMG_WIDTH}x${IMG_HEIGHT}&location=${location.lat},${location.lng}&heading=${heading}&pitch=${camPitch}&fov=90&source=outdoor&key=${apiKey}`;
+    const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=${IMG_WIDTH}x${IMG_HEIGHT}&location=${location.lat},${location.lng}&heading=${heading}&pitch=${camPitch}&fov=${fov}&source=outdoor&key=${apiKey}`;
 
     // ─── Dibujo de la línea de medición ─────────────────────────────────────
     const getRelativePoint = useCallback((clientX: number, clientY: number) => {
@@ -146,8 +147,29 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
 
     const matchedPitch = measuredDegrees !== null ? matchPitchCategory(measuredDegrees) : null;
 
-    const rotate = (delta: number) => setHeading((h) => (h + delta + 360) % 360);
-    const tilt = (delta: number) => setCamPitch((p) => Math.max(-20, Math.min(40, p + delta)));
+    // El paso de rotación/inclinación es proporcional al fov actual — con
+    // zoom cerrado (fov chico) un salto fijo de 30°/10° te saca el techo de
+    // cuadro, así que escalamos el paso con el nivel de zoom actual.
+    const rotateStep = Math.max(4, Math.round(fov * 0.35));
+    const tiltStep = Math.max(2, Math.round(fov * 0.12));
+
+    const rotate = (sign: 1 | -1) => setHeading((h) => (h + sign * rotateStep + 360) % 360);
+    const tilt = (sign: 1 | -1) => setCamPitch((p) => Math.max(-20, Math.min(40, p + sign * tiltStep)));
+    const zoom = (delta: number) => setFov((f) => Math.max(30, Math.min(120, f + delta)));
+    const resetView = () => {
+        setCamPitch(0);
+        setFov(90);
+    };
+
+    // Ícono de flecha reutilizable para el D-pad
+    const Chevron = ({ direction }: { direction: "up" | "down" | "left" | "right" }) => {
+        const rotation = { up: 0, right: 90, down: 180, left: 270 }[direction];
+        return (
+            <svg width="16" height="16" viewBox="0 0 24 24" style={{ transform: `rotate(${rotation}deg)` }}>
+                <path d="M12 5l7 12H5z" fill="currentColor" />
+            </svg>
+        );
+    };
 
     return (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -261,49 +283,93 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                         </>
                                     )}
                                 </svg>
-                            </div>
 
-                            {/* Controles de cámara */}
-                            <div className="flex items-center justify-between gap-2">
-                                <div className="flex gap-1.5">
-                                    <button
-                                        onClick={() => rotate(-30)}
-                                        className="px-3 py-1.5 rounded-lg bg-gray-100 text-[#00589e]  hover:bg-gray-200 text-xs font-bold cursor-pointer"
-                                    >
-                                        ↺ Rotate
-                                    </button>
-                                    <button
-                                        onClick={() => rotate(30)}
-                                        className="px-3 py-1.5 rounded-lg bg-gray-100 text-[#00589e]  hover:bg-gray-200 text-xs font-bold cursor-pointer"
-                                    >
-                                        Rotate ↻
-                                    </button>
-                                </div>
-                                <div className="flex gap-1.5">
-                                    <button
-                                        onClick={() => tilt(10)}
-                                        className="px-3 py-1.5 rounded-lg bg-gray-100 text-[#00589e]  hover:bg-gray-200 text-xs font-bold cursor-pointer"
-                                    >
-                                        ↑ Look Up
-                                    </button>
-                                    <button
-                                        onClick={() => tilt(-10)}
-                                        className="px-3 py-1.5 rounded-lg bg-gray-100 text-[#00589e]  hover:bg-gray-200 text-xs font-bold cursor-pointer"
-                                    >
-                                        ↓ Look Down
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={() => setPoints([])}
-                                    disabled={!hasLine}
-                                    className="px-3 py-1.5 rounded-lg bg-gray-100 text-[#00589e]  hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold cursor-pointer"
+                                {/* ── D-pad + Zoom, estilo controles nativos de Street View ──
+                                    stopPropagation en pointerdown/up/move para que un click acá
+                                    NO se registre como un punto de la línea de medición. */}
+                                <div
+                                    className="absolute bottom-3 right-3 flex items-end gap-2.5 pointer-events-none"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onPointerMove={(e) => e.stopPropagation()}
+                                    onPointerUp={(e) => e.stopPropagation()}
                                 >
-                                    Clear Line
-                                </button>
+                                    {/* Cruz direccional */}
+                                    <div
+                                        className="grid pointer-events-auto"
+                                        style={{ gridTemplateColumns: "repeat(3, 32px)", gridTemplateRows: "repeat(3, 32px)", gap: "4px" }}
+                                    >
+                                        <div />
+                                        <button
+                                            type="button"
+                                            onClick={() => tilt(1)}
+                                            title="Look up"
+                                            className="rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-700 cursor-pointer"
+                                        >
+                                            <Chevron direction="up" />
+                                        </button>
+                                        <div />
+
+                                        <button
+                                            type="button"
+                                            onClick={() => rotate(-1)}
+                                            title="Rotate left"
+                                            className="rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-700 cursor-pointer"
+                                        >
+                                            <Chevron direction="left" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={resetView}
+                                            title="Reset view"
+                                            className="rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-400 cursor-pointer"
+                                        >
+                                            <div className="w-2 h-2 rounded-full bg-current" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => rotate(1)}
+                                            title="Rotate right"
+                                            className="rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-700 cursor-pointer"
+                                        >
+                                            <Chevron direction="right" />
+                                        </button>
+
+                                        <div />
+                                        <button
+                                            type="button"
+                                            onClick={() => tilt(-1)}
+                                            title="Look down"
+                                            className="rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-700 cursor-pointer"
+                                        >
+                                            <Chevron direction="down" />
+                                        </button>
+                                        <div />
+                                    </div>
+
+                                    {/* Zoom +/- */}
+                                    <div className="flex flex-col gap-2.5 pointer-events-auto">
+                                        <button
+                                            type="button"
+                                            onClick={() => zoom(-15)}
+                                            title="Zoom in"
+                                            className="w-8 h-8 rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-700 font-black text-base cursor-pointer"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => zoom(15)}
+                                            title="Zoom out"
+                                            className="w-8 h-8 rounded-full bg-white hover:bg-gray-50 shadow-lg flex items-center justify-center text-gray-700 font-black text-base cursor-pointer"
+                                        >
+                                            −
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Resultado */}
-                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
+                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-3">
                                 <div>
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
                                         Measured Angle
@@ -322,6 +388,13 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                         </p>
                                     </div>
                                 )}
+                                <button
+                                    onClick={() => setPoints([])}
+                                    disabled={!hasLine}
+                                    className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold text-gray-600 cursor-pointer whitespace-nowrap"
+                                >
+                                    Clear Line
+                                </button>
                             </div>
 
                             <p className="text-[10px] text-gray-400 italic leading-snug">
