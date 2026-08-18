@@ -15,35 +15,53 @@ export interface QuoteFormProps {
 
 type Step = "quote" | "lead" | "confirmation";
 
-const ASPHALT_PITCHES: { value: RoofPitch; label: string; range: string }[] = [
-    { value: "shallow", label: "Shallow", range: "2/12 - 4/12" },
-    { value: "medium", label: "Medium", range: "5/12 - 8/12" },
-    { value: "steep", label: "Steep", range: "9/12 - 11/12" },
-    { value: "high_steep", label: "High Steep", range: "12/12+" },
+// ─── Metadata de Pitch — incluye el ratio rise/run REAL de cada categoría ──────
+// (usamos el punto medio de cada rango) para que el ícono dibuje el ángulo
+// verdadero en vez de un triángulo genérico. Esto es lo que hace que las 4
+// opciones se vean realmente distintas entre sí, no solo texto distinto.
+const ASPHALT_PITCHES: {
+    value: RoofPitch;
+    label: string;
+    range: string;
+    degrees: string;
+    riseOverRun: number; // pulgadas de subida por 12" de recorrido, normalizado a 0–1
+}[] = [
+    { value: "shallow", label: "Shallow", range: "2/12 - 4/12", degrees: "~9°–18°", riseOverRun: 3 / 12 },
+    { value: "medium", label: "Medium", range: "5/12 - 8/12", degrees: "~23°–34°", riseOverRun: 6.5 / 12 },
+    { value: "steep", label: "Steep", range: "9/12 - 11/12", degrees: "~37°–43°", riseOverRun: 10 / 12 },
+    { value: "high_steep", label: "High Steep", range: "12/12+", degrees: "45°+", riseOverRun: 1 },
 ];
 
-const PITCH_ICONS: Record<RoofPitch, React.ReactNode> = {
-    shallow: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 17h18L12 12 3 17z" />
+// ─── Ícono de corte transversal de techo — ángulo real, no decorativo ──────────
+function RoofPitchIcon({ riseOverRun, active }: { riseOverRun: number; active: boolean }) {
+    const halfWidth = 22;
+    const roofBaseY = 40; // altura de donde arrancan las dos aguas del techo
+    const peakY = roofBaseY - halfWidth * riseOverRun;
+    const leftX = 8;
+    const midX = 8 + halfWidth;
+    const rightX = 8 + halfWidth * 2;
+    const wallBottomY = 50;
+
+    return (
+        <svg width="64" height="60" viewBox="0 0 64 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Piso */}
+            <line x1="4" y1={wallBottomY} x2="60" y2={wallBottomY} stroke="currentColor" strokeWidth="1.5" opacity="0.2" />
+            {/* Paredes */}
+            <line x1={leftX} y1={roofBaseY} x2={leftX} y2={wallBottomY} stroke="currentColor" strokeWidth="2" opacity="0.35" />
+            <line x1={rightX} y1={roofBaseY} x2={rightX} y2={wallBottomY} stroke="currentColor" strokeWidth="2" opacity="0.35" />
+            {/* Techo — el ángulo acá SÍ representa la pendiente real */}
+            <path
+                d={`M ${leftX} ${roofBaseY} L ${midX} ${peakY} L ${rightX} ${roofBaseY}`}
+                stroke="currentColor"
+                strokeWidth="2.75"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                fill="currentColor"
+                fillOpacity={active ? 0.15 : 0.05}
+            />
         </svg>
-    ),
-    medium: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 18h18L12 9 3 18z" />
-        </svg>
-    ),
-    steep: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 19h18L12 6 3 19z" />
-        </svg>
-    ),
-    high_steep: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 20h18L12 3 3 20z" />
-        </svg>
-    ),
-};
+    );
+}
 
 export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProps) => {
     const { calculateQuote } = useRoofCalculator();
@@ -176,13 +194,13 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                             </div>
                         </div>
 
-                        {/* Pitch / Inclinación (Si es Asphalt) */}
+                        {/* Pitch / Inclinación (Si es Asphalt) ─────────────────────────── */}
                         {!isTPO && (
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-3">
                                     Roof Pitch (Steepness)
                                 </label>
-                                <div className="grid grid-cols-4 gap-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                     {ASPHALT_PITCHES.map((p) => {
                                         const isSelected = activeSection.pitch === p.value;
                                         return (
@@ -190,19 +208,30 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                                                 key={p.value}
                                                 type="button"
                                                 onClick={() => updateActiveSection({ pitch: p.value })}
-                                                className={`flex flex-col items-center justify-center py-3 px-1 rounded-xl border-2 transition-all cursor-pointer ${
+                                                className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-all cursor-pointer ${
                                                     isSelected
-                                                        ? "border-[#00589e] bg-blue-50 text-[#00589e] shadow-sm font-black"
-                                                        : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200 font-bold"
+                                                        ? "border-[#00589e] bg-blue-50 text-[#00589e] shadow-lg scale-[1.04]"
+                                                        : "border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-300 hover:bg-gray-100"
                                                 }`}
                                             >
-                                                <div className={isSelected ? "text-[#00589e]" : "text-gray-300"}>
-                                                    {PITCH_ICONS[p.value]}
-                                                </div>
-                                                <span className="text-[12px] uppercase tracking-wider leading-tight text-center mt-1">
-                          {p.label}
-                        </span>
-                                                <span className="text-[10px] text-gray-700 mt-0.5">{p.range}</span>
+                                                <RoofPitchIcon riseOverRun={p.riseOverRun} active={isSelected} />
+                                                <span
+                                                    className={`text-[13px] uppercase tracking-wider leading-tight text-center mt-1 font-black ${
+                                                        isSelected ? "text-[#00589e]" : "text-gray-700"
+                                                    }`}
+                                                >
+                                                    {p.label}
+                                                </span>
+                                                <span className="text-[12px] text-gray-700 mt-0.5 font-semibold">
+                                                    {p.range}
+                                                </span>
+                                                <span
+                                                    className={`text-[10px] mt-0.5 ${
+                                                        isSelected ? "text-[#00589e]/70" : "text-gray-400"
+                                                    }`}
+                                                >
+                                                    {p.degrees}
+                                                </span>
                                             </button>
                                         );
                                     })}
