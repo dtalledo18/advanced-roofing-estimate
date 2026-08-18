@@ -319,6 +319,7 @@ export default function SalesEstimatorPage() {
                     sections={sections}
                     onUpdateSections={setSections}
                     address={selectedAddress}
+                    location={location}
                 />
               </div>
           )}

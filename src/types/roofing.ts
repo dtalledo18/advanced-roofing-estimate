@@ -12,6 +12,10 @@ export interface RoofSection {
     areaSqFt: number;
     material: RoofMaterial;
     pitch: RoofPitch;
+    // Grado exacto medido con la herramienta de Street View (opcional).
+    // El pricing sigue usando `pitch` (la categoría) — este campo es solo
+    // para mostrar el dato preciso que originó esa categoría.
+    pitchDegrees?: number;
     layersToRemove: number;
     color?: string; // Para diferenciar visulamente los polígonos en el mapa
 }

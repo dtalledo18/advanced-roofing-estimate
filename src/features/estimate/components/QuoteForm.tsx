@@ -6,25 +6,24 @@ import { RoofSection, RoofMaterial, RoofPitch } from "@/types/roofing";
 import { useRoofCalculator } from "@/hooks/useRoofCalculator";
 import { LeadForm } from "@/features/estimate/components/LeadForm";
 import { ConfirmationScreen } from "@/features/estimate/components/ConfirmationScreen";
+import { StreetViewPitchTool } from "@/features/estimate/components/StreetViewPitchTool";
 
 export interface QuoteFormProps {
     sections: RoofSection[];
     onUpdateSections: (sections: RoofSection[]) => void;
     address: string;
+    location: { lat: number; lng: number };
 }
 
 type Step = "quote" | "lead" | "confirmation";
 
 // ─── Metadata de Pitch — incluye el ratio rise/run REAL de cada categoría ──────
-// (usamos el punto medio de cada rango) para que el ícono dibuje el ángulo
-// verdadero en vez de un triángulo genérico. Esto es lo que hace que las 4
-// opciones se vean realmente distintas entre sí, no solo texto distinto.
 const ASPHALT_PITCHES: {
     value: RoofPitch;
     label: string;
     range: string;
     degrees: string;
-    riseOverRun: number; // pulgadas de subida por 12" de recorrido, normalizado a 0–1
+    riseOverRun: number;
 }[] = [
     { value: "shallow", label: "Shallow", range: "2/12 - 4/12", degrees: "~9°–18°", riseOverRun: 3 / 12 },
     { value: "medium", label: "Medium", range: "5/12 - 8/12", degrees: "~23°–34°", riseOverRun: 6.5 / 12 },
@@ -35,7 +34,7 @@ const ASPHALT_PITCHES: {
 // ─── Ícono de corte transversal de techo — ángulo real, no decorativo ──────────
 function RoofPitchIcon({ riseOverRun, active }: { riseOverRun: number; active: boolean }) {
     const halfWidth = 22;
-    const roofBaseY = 40; // altura de donde arrancan las dos aguas del techo
+    const roofBaseY = 40;
     const peakY = roofBaseY - halfWidth * riseOverRun;
     const leftX = 8;
     const midX = 8 + halfWidth;
@@ -44,12 +43,9 @@ function RoofPitchIcon({ riseOverRun, active }: { riseOverRun: number; active: b
 
     return (
         <svg width="64" height="60" viewBox="0 0 64 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Piso */}
             <line x1="4" y1={wallBottomY} x2="60" y2={wallBottomY} stroke="currentColor" strokeWidth="1.5" opacity="0.2" />
-            {/* Paredes */}
             <line x1={leftX} y1={roofBaseY} x2={leftX} y2={wallBottomY} stroke="currentColor" strokeWidth="2" opacity="0.35" />
             <line x1={rightX} y1={roofBaseY} x2={rightX} y2={wallBottomY} stroke="currentColor" strokeWidth="2" opacity="0.35" />
-            {/* Techo — el ángulo acá SÍ representa la pendiente real */}
             <path
                 d={`M ${leftX} ${roofBaseY} L ${midX} ${peakY} L ${rightX} ${roofBaseY}`}
                 stroke="currentColor"
@@ -63,19 +59,32 @@ function RoofPitchIcon({ riseOverRun, active }: { riseOverRun: number; active: b
     );
 }
 
-export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProps) => {
+// ─── Ícono "Custom" — cámara/mira, distinto de los otros 4 para no confundir ───
+function CustomPitchIcon({ active }: { active: boolean }) {
+    return (
+        <svg width="64" height="60" viewBox="0 0 64 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="30" r="18" stroke="currentColor" strokeWidth="2" opacity={active ? 0.9 : 0.4} />
+            <line x1="32" y1="6" x2="32" y2="14" stroke="currentColor" strokeWidth="2" opacity={active ? 0.9 : 0.4} />
+            <line x1="32" y1="46" x2="32" y2="54" stroke="currentColor" strokeWidth="2" opacity={active ? 0.9 : 0.4} />
+            <line x1="8" y1="30" x2="16" y2="30" stroke="currentColor" strokeWidth="2" opacity={active ? 0.9 : 0.4} />
+            <line x1="48" y1="30" x2="56" y2="30" stroke="currentColor" strokeWidth="2" opacity={active ? 0.9 : 0.4} />
+            <circle cx="32" cy="30" r="4" fill="currentColor" fillOpacity={active ? 0.8 : 0.35} />
+        </svg>
+    );
+}
+
+export const QuoteForm = ({ sections, onUpdateSections, address, location }: QuoteFormProps) => {
     const { calculateQuote } = useRoofCalculator();
     const [step, setStep] = useState<Step>("quote");
     const [activeTabId, setActiveTabId] = useState<string>(sections[0]?.id || "");
+    const [showStreetViewTool, setShowStreetViewTool] = useState(false);
 
-    // Asegurar que activeTabId apunta a una sección válida
     const currentActiveId = sections.some((s) => s.id === activeTabId)
         ? activeTabId
         : sections[0]?.id || "";
 
     const activeSection = sections.find((s) => s.id === currentActiveId) || sections[0];
 
-    // Función para actualizar la sección actualmente seleccionada
     const updateActiveSection = (updates: Partial<RoofSection>) => {
         if (!activeSection) return;
         const updated = sections.map((sec) =>
@@ -84,7 +93,6 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
         onUpdateSections(updated);
     };
 
-    // Cálculo global consolidado
     const result = calculateQuote({ address, sections });
     const totalSqFt = sections.reduce((sum, s) => sum + s.areaSqFt, 0);
 
@@ -101,7 +109,6 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white p-5 sm:p-8 rounded-2xl border border-gray-200 shadow-sm">
             {/* ── Controles de Edición por Sección (Izquierda - 7 columnas) ── */}
             <div className="lg:col-span-7 space-y-6 text-black">
-                {/* Pestañas / Tabs para seleccionar qué sección editar */}
                 <div>
                     <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
                         Configure Roof Section ({sections.length})
@@ -136,7 +143,6 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
 
                 {activeSection && (
                     <div className="space-y-6 animate-in fade-in duration-200">
-                        {/* Nombre de la sección & Área */}
                         <div className="flex flex-wrap items-center justify-between gap-4 bg-blue-50/40 border border-blue-100 p-4 rounded-xl">
                             <div>
                                 <p className="text-xs text-[#00589e] font-bold uppercase tracking-wider">
@@ -197,17 +203,25 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                         {/* Pitch / Inclinación (Si es Asphalt) ─────────────────────────── */}
                         {!isTPO && (
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                                    Roof Pitch (Steepness)
-                                </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="block text-sm font-semibold text-gray-700">
+                                        Roof Pitch (Steepness)
+                                    </label>
+                                    {activeSection.pitchDegrees !== undefined && (
+                                        <span className="text-[11px] font-bold text-[#00589e] bg-blue-50 border border-blue-100 rounded-full px-2.5 py-0.5">
+                                            Measured: {activeSection.pitchDegrees}°
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                                     {ASPHALT_PITCHES.map((p) => {
-                                        const isSelected = activeSection.pitch === p.value;
+                                        const isSelected =
+                                            activeSection.pitch === p.value && activeSection.pitchDegrees === undefined;
                                         return (
                                             <button
                                                 key={p.value}
                                                 type="button"
-                                                onClick={() => updateActiveSection({ pitch: p.value })}
+                                                onClick={() => updateActiveSection({ pitch: p.value, pitchDegrees: undefined })}
                                                 className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-all cursor-pointer ${
                                                     isSelected
                                                         ? "border-[#00589e] bg-blue-50 text-[#00589e] shadow-lg scale-[1.04]"
@@ -217,12 +231,12 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                                                 <RoofPitchIcon riseOverRun={p.riseOverRun} active={isSelected} />
                                                 <span
                                                     className={`text-[13px] uppercase tracking-wider leading-tight text-center mt-1 font-black ${
-                                                        isSelected ? "text-[#00589e]" : "text-gray-700"
+                                                        isSelected ? "text-[#00589e]" : "text-gray-600"
                                                     }`}
                                                 >
                                                     {p.label}
                                                 </span>
-                                                <span className="text-[12px] text-gray-700 mt-0.5 font-semibold">
+                                                <span className="text-[11px] text-gray-500 mt-0.5 font-semibold">
                                                     {p.range}
                                                 </span>
                                                 <span
@@ -235,6 +249,32 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                                             </button>
                                         );
                                     })}
+
+                                    {/* ── Custom (Street View) ── */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowStreetViewTool(true)}
+                                        className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
+                                            activeSection.pitchDegrees !== undefined
+                                                ? "border-[#e65100] bg-orange-50 text-[#e65100] shadow-lg scale-[1.04]"
+                                                : "border-gray-300 bg-gray-50 text-gray-400 hover:border-gray-400 hover:bg-gray-100"
+                                        }`}
+                                    >
+                                        <CustomPitchIcon active={activeSection.pitchDegrees !== undefined} />
+                                        <span
+                                            className={`text-[13px] uppercase tracking-wider leading-tight text-center mt-1 font-black ${
+                                                activeSection.pitchDegrees !== undefined ? "text-[#e65100]" : "text-gray-600"
+                                            }`}
+                                        >
+                                            Custom
+                                        </span>
+                                        <span className="text-[11px] text-gray-500 mt-0.5 font-semibold">
+                                            {activeSection.pitchDegrees !== undefined
+                                                ? `${activeSection.pitchDegrees}°`
+                                                : "Street View"}
+                                        </span>
+                                        <span className="text-[10px] mt-0.5 text-gray-400">measure it</span>
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -282,7 +322,6 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
             </span>
                     </h3>
 
-                    {/* Desglose de Secciones */}
                     <div className="space-y-3 mb-6 max-h-56 overflow-y-auto pr-1">
                         {sections.map((sec) => (
                             <div
@@ -299,7 +338,9 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                                         <p className="text-[10px] text-gray-400 capitalize">
                                             {sec.material === "flat_tpo"
                                                 ? "Flat TPO"
-                                                : `Asphalt (${sec.pitch} pitch)`}
+                                                : `Asphalt (${sec.pitch} pitch${
+                                                    sec.pitchDegrees !== undefined ? `, ${sec.pitchDegrees}°` : ""
+                                                })`}
                                         </p>
                                     </div>
                                 </div>
@@ -310,7 +351,6 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                         ))}
                     </div>
 
-                    {/* Detalle de Costos Parciales */}
                     <div className="space-y-2 border-t border-gray-200 pt-4 text-xs">
                         <div className="flex justify-between text-gray-600 font-medium">
                             <span>Materials Cost:</span>
@@ -344,6 +384,17 @@ export const QuoteForm = ({ sections, onUpdateSections, address }: QuoteFormProp
                     </p>
                 </div>
             </div>
+
+            {showStreetViewTool && activeSection && (
+                <StreetViewPitchTool
+                    location={location}
+                    onClose={() => setShowStreetViewTool(false)}
+                    onConfirm={(degrees, matchedPitch) => {
+                        updateActiveSection({ pitch: matchedPitch, pitchDegrees: degrees });
+                        setShowStreetViewTool(false);
+                    }}
+                />
+            )}
         </div>
     );
 };
