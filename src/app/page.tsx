@@ -14,6 +14,14 @@ type AppStep = "map" | "quote";
 
 const SECTION_COLORS = ["#00589e", "#e65100", "#2e7d32", "#6a1b9a", "#c2185b"];
 
+// Contador de IDs a nivel de módulo — evita usar Date.now()/crypto.randomUUID()
+// dentro del componente, que dispara el lint react-hooks/purity de React 19.
+let sectionIdCounter = 0;
+function nextSectionId(): string {
+  sectionIdCounter += 1;
+  return `section-${sectionIdCounter}`;
+}
+
 export default function SalesEstimatorPage() {
   const [step, setStep] = useState<AppStep>("map");
   const [location, setLocation] = useState(DEFAULT_CENTER);
@@ -23,6 +31,7 @@ export default function SalesEstimatorPage() {
   const [mapZoom, setMapZoom] = useState(11);
   const [roofError, setRoofError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
 
   const handleAddressSelect = async (address: string, lat: number, lng: number) => {
     setLocation({ lat, lng });
@@ -73,25 +82,25 @@ export default function SalesEstimatorPage() {
     );
   };
 
-  const handleAddSection = () => {
-    const offset = (sections.length + 1) * 0.0001;
-    const centerLat = location.lat;
-    const centerLng = location.lng;
+  const handleStartAddSection = () => {
+    setIsDrawingMode(true);
+  };
 
-    // Crear un cuadrado pequeño por defecto cerca del centro del mapa
-    const defaultCoords = [
-      { lat: centerLat + offset, lng: centerLng + offset },
-      { lat: centerLat + offset, lng: centerLng + offset + 0.00015 },
-      { lat: centerLat + offset - 0.00015, lng: centerLng + offset + 0.00015 },
-      { lat: centerLat + offset - 0.00015, lng: centerLng + offset },
-    ];
+  const handleCancelDrawing = () => {
+    setIsDrawingMode(false);
+  };
 
-    const newId = `section-${Date.now()}`;
+  const handleSectionDrawn = (coords: { lat: number; lng: number }[]) => {
+    setIsDrawingMode(false);
+
+    if (coords.length < 3) return; // polígono inválido, ignorar
+
+    const newId = nextSectionId();
     const newSection: RoofSection = {
       id: newId,
-      name: `Section ${String.fromCharCode(65 + sections.length)}`, // ej. Section B, Section C
-      coords: defaultCoords,
-      areaSqFt: computeAreaSqFt(defaultCoords) || 400,
+      name: `Section ${String.fromCharCode(65 + sections.length)}`,
+      coords,
+      areaSqFt: computeAreaSqFt(coords) || 400,
       material: "asphalt_shingle",
       pitch: "medium",
       layersToRemove: 1,
@@ -117,6 +126,7 @@ export default function SalesEstimatorPage() {
     setLocation(DEFAULT_CENTER);
     setRoofError(null);
     setMapZoom(11);
+    setIsDrawingMode(false);
   };
 
   const totalSqFt = sections.reduce((acc, s) => acc + s.areaSqFt, 0);
@@ -168,9 +178,9 @@ export default function SalesEstimatorPage() {
                       step === "map" ? "text-[#00589e]" : "text-gray-400 hover:text-gray-700"
                   }`}
               >
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  step === "map" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
-              }`}>1</span>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                                step === "map" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
+                            }`}>1</span>
                 <span>Address & Multi-Roof Boundaries</span>
               </button>
 
@@ -187,9 +197,9 @@ export default function SalesEstimatorPage() {
                               : "text-gray-300 cursor-not-allowed"
                   }`}
               >
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  step === "quote" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
-              }`}>2</span>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                                step === "quote" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
+                            }`}>2</span>
                 <span>Estimate & Specifications</span>
               </button>
             </div>
@@ -254,7 +264,10 @@ export default function SalesEstimatorPage() {
                         activeSectionId={activeSectionId}
                         onSelectSection={setActiveSectionId}
                         onUpdateSectionCoords={handleUpdateCoords}
-                        onAddSection={handleAddSection}
+                        isDrawingMode={isDrawingMode}
+                        onStartAddSection={handleStartAddSection}
+                        onSectionDrawn={handleSectionDrawn}
+                        onCancelDrawing={handleCancelDrawing}
                         onRemoveSection={handleRemoveSection}
                         hideControls={!selectedAddress}
                     />
