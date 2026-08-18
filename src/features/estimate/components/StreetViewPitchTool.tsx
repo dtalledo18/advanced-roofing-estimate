@@ -221,7 +221,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">
+                    <h3 className="text-base font-black text-gray-800 uppercase tracking-wider">
                         Measure Pitch from Street View
                     </h3>
                     <button
@@ -241,10 +241,10 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                     )}
 
                     {status === "error" && (
-                        <div className="h-[300px] flex items-center justify-center text-sm text-red-500 font-semibold text-center px-6">
+                        <div className="h-[300px] flex items-center justify-center text-base text-red-500 font-semibold text-center px-6">
                             Could not load Street View. Check the API key or your connection.
                             {rawStatus && (
-                                <span className="block text-[11px] font-normal text-gray-400 mt-2">
+                                <span className="block text-sm font-normal text-gray-400 mt-2">
                                     Status returned: {rawStatus}
                                 </span>
                             )}
@@ -252,40 +252,40 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                     )}
 
                     {status === "request_denied" && (
-                        <div className="h-[300px] flex items-center justify-center text-sm text-red-500 font-semibold text-center px-6 leading-snug">
-                            Google devolvió REQUEST_DENIED. La Street View Static API es un producto aparte en
-                            Google Cloud — hay que habilitarla en <strong>APIs & Services → Library →
-                            &quot;Street View Static API&quot;</strong>, y revisar que la API key no tenga
-                            restricciones de referrer/IP que bloqueen esta llamada.
+                        <div className="h-[300px] flex items-center justify-center text-base text-red-500 font-semibold text-center px-6 leading-snug">
+                            Google returned REQUEST_DENIED. Street View Static API is a separate product in
+                            Google Cloud — you need to enable it under <strong>APIs & Services → Library →
+                            &quot;Street View Static API&quot;</strong>, and check that the API key doesn&apos;t
+                            have referrer/IP restrictions blocking this call.
                         </div>
                     )}
 
                     {status === "over_limit" && (
-                        <div className="h-[300px] flex items-center justify-center text-sm text-amber-600 font-semibold text-center px-6">
-                            Se superó la cuota de la Street View Static API para esta key. Revisá el uso/billing en
+                        <div className="h-[300px] flex items-center justify-center text-base text-amber-600 font-semibold text-center px-6">
+                            The Street View Static API quota was exceeded for this key. Check usage/billing in
                             Google Cloud Console.
                         </div>
                     )}
 
                     {status === "no_coverage" && (
-                        <div className="h-[300px] flex items-center justify-center text-sm text-amber-600 font-semibold text-center px-6">
-                            No hay imagen de Street View disponible para esta dirección. Elegí una de las 4 categorías estándar a ojo.
+                        <div className="h-[300px] flex items-center justify-center text-base text-amber-600 font-semibold text-center px-6">
+                            No Street View imagery is available for this address. Pick one of the 4 standard categories by eye.
                         </div>
                     )}
 
                     {status === "ok" && (
                         <>
-                            <p className="text-xs text-gray-500 leading-snug">
+                            <p className="text-sm text-gray-600 leading-snug">
                                 {phase === "reference" ? (
                                     <>
-                                        <strong className="text-[#2563eb]">Paso 1 de 2:</strong> trazá una línea sobre
-                                        algo que sepas que está a nivel de verdad (una canaleta, el borde de una
-                                        ventana, la base de la pared) — esta es la referencia horizontal real.
+                                        <strong className="text-[#2563eb]">Step 1 of 2:</strong> draw a line over
+                                        something you know is truly level (a gutter, a window edge, the base of a
+                                        wall) — this is your real horizontal reference.
                                     </>
                                 ) : (
                                     <>
-                                        <strong className="text-[#e65100]">Paso 2 de 2:</strong> ahora trazá la línea
-                                        siguiendo la pendiente del techo.
+                                        <strong className="text-[#e65100]">Step 2 of 2:</strong> now draw a line
+                                        following the slope of the roof.
                                     </>
                                 )}
                             </p>
@@ -428,56 +428,56 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                 </div>
                             </div>
 
-                            {/* Resultado */}
+                            {/* Result */}
                             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
                                 <div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                                    <p className="text-xs font-black text-gray-400 uppercase tracking-wider">
                                         Measured Angle
                                     </p>
-                                    <p className="text-2xl font-black text-[#00589e]">
+                                    <p className="text-3xl font-black text-[#00589e]">
                                         {measuredDegrees !== null ? `${measuredDegrees}°` : "—"}
                                     </p>
                                 </div>
                                 {matchedPitch && (
                                     <div className="text-right">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                                        <p className="text-xs font-black text-gray-400 uppercase tracking-wider">
                                             Matches Category
                                         </p>
-                                        <p className="text-sm font-black text-gray-800 capitalize">
+                                        <p className="text-base font-black text-gray-800 capitalize">
                                             {matchedPitch.replace("_", " ")}
                                         </p>
                                     </div>
                                 )}
                                 {!hasRefLine && (
-                                    <span className="text-[11px] font-bold text-[#2563eb] bg-blue-100 rounded-full px-2.5 py-1">
-                                        Falta trazar la referencia
+                                    <span className="text-sm font-bold text-[#2563eb] bg-blue-100 rounded-full px-3 py-1">
+                                        Reference line needed
                                     </span>
                                 )}
                                 {hasRefLine && !hasSlopeLine && (
-                                    <span className="text-[11px] font-bold text-[#e65100] bg-orange-100 rounded-full px-2.5 py-1">
-                                        Falta trazar el techo
+                                    <span className="text-sm font-bold text-[#e65100] bg-orange-100 rounded-full px-3 py-1">
+                                        Roof line needed
                                     </span>
                                 )}
                                 <div className="flex gap-1.5 ml-auto">
                                     <button
                                         onClick={clearReference}
                                         disabled={!hasRefLine}
-                                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold text-[#2563eb] cursor-pointer whitespace-nowrap"
+                                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold text-[#2563eb] cursor-pointer whitespace-nowrap"
                                     >
                                         Redo Reference
                                     </button>
                                     <button
                                         onClick={clearSlope}
                                         disabled={!hasSlopeLine}
-                                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold text-[#e65100] cursor-pointer whitespace-nowrap"
+                                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold text-[#e65100] cursor-pointer whitespace-nowrap"
                                     >
                                         Redo Roof Line
                                     </button>
                                 </div>
                             </div>
 
-                            <p className="text-[10px] text-gray-400 italic leading-snug">
-                                Estimación visual basada en la foto — no es una medición topográfica certificada.
+                            <p className="text-xs text-gray-400 italic leading-snug">
+                                Visual estimate based on the photo — not a certified topographic measurement.
                             </p>
                         </>
                     )}
@@ -486,7 +486,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                 <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 bg-gray-50">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-gray-600 hover:bg-gray-200 cursor-pointer"
+                        className="px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wider text-gray-600 hover:bg-gray-200 cursor-pointer"
                     >
                         Cancel
                     </button>
@@ -497,7 +497,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                             }
                         }}
                         disabled={measuredDegrees === null}
-                        className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-[#00589e] hover:bg-[#004277] disabled:opacity-40 disabled:cursor-not-allowed text-white cursor-pointer"
+                        className="px-5 py-2 rounded-xl text-sm font-black uppercase tracking-wider bg-[#00589e] hover:bg-[#004277] disabled:opacity-40 disabled:cursor-not-allowed text-white cursor-pointer"
                     >
                         Use This Pitch
                     </button>
