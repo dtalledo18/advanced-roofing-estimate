@@ -83,6 +83,38 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
     // a donde quedó, en vez de reiniciar todo desde cero.
     const [streetViewDrafts, setStreetViewDrafts] = useState<Record<string, StreetViewMeasurementState>>({});
 
+    // ── Reordenar secciones con drag & drop nativo ──────────────────────────
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+    const handleDragStart = (index: number) => {
+        setDraggedIndex(index);
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault(); // necesario para permitir el drop
+        if (index !== dragOverIndex) setDragOverIndex(index);
+    };
+
+    const handleDrop = (targetIndex: number) => {
+        if (draggedIndex === null || draggedIndex === targetIndex) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+        const reordered = [...sections];
+        const [moved] = reordered.splice(draggedIndex, 1);
+        reordered.splice(targetIndex, 0, moved);
+        onUpdateSections(reordered);
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
     const currentActiveId = sections.some((s) => s.id === activeTabId)
         ? activeTabId
         : sections[0]?.id || "";
@@ -118,27 +150,42 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                         Configure Roof Section ({sections.length})
                     </label>
                     <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
-                        {sections.map((sec) => {
+                        {sections.map((sec, idx) => {
                             const isActive = sec.id === currentActiveId;
+                            const isDragging = draggedIndex === idx;
+                            const isDragOver = dragOverIndex === idx && draggedIndex !== null && draggedIndex !== idx;
                             return (
                                 <button
                                     key={sec.id}
                                     type="button"
+                                    draggable
+                                    onDragStart={() => handleDragStart(idx)}
+                                    onDragOver={(e) => handleDragOver(e, idx)}
+                                    onDrop={() => handleDrop(idx)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => setActiveTabId(sec.id)}
-                                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                    className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none ${
                                         isActive
                                             ? "bg-[#00589e] text-white shadow-md scale-[1.02]"
                                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                    } ${isDragging ? "opacity-40" : ""} ${
+                                        isDragOver ? "ring-2 ring-offset-1 ring-[#00589e]" : ""
                                     }`}
                                 >
-                  <span
-                      className="w-2.5 h-2.5 rounded-full border border-white"
-                      style={{ backgroundColor: sec.color || "#00589e" }}
-                  />
+                                    <span
+                                        className={`text-sm leading-none ${isActive ? "text-white/60" : "text-gray-400"}`}
+                                        title="Drag to reorder"
+                                    >
+                                        ⠿
+                                    </span>
+                                    <span
+                                        className="w-2.5 h-2.5 rounded-full border border-white"
+                                        style={{ backgroundColor: sec.color || "#00589e" }}
+                                    />
                                     <span>{sec.name}</span>
                                     <span className="text-[10px] opacity-80">
-                    ({sec.areaSqFt.toLocaleString()} sq ft)
-                  </span>
+                                        ({sec.areaSqFt.toLocaleString()} sq ft)
+                                    </span>
                                 </button>
                             );
                         })}
