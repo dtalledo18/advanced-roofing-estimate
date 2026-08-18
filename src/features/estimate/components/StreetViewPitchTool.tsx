@@ -57,18 +57,18 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     const [camPitch, setCamPitch] = useState(0); // ángulo de cámara (mirar arriba/abajo), no confundir con el pitch del techo
     const [fov, setFov] = useState(90); // campo de visión — más chico = más zoom
 
-    // ─── Medición en dos pasos ──────────────────────────────────────────────
-    // Paso 1: el usuario traza una línea sobre algo que SABE que está a nivel
-    // (una canaleta, el borde de una ventana, la base de la pared). Esto es
-    // la referencia horizontal real — no asumimos que el horizonte de la
-    // foto está nivelado, porque Street View puede tener roll de cámara.
-    // Paso 2: traza la línea siguiendo la pendiente del techo.
-    // El ángulo medido es el que hay ENTRE las dos líneas, no contra el
-    // borde crudo de la imagen.
+    // ─── Medición en dos pasos, ahora compartiendo vértice ─────────────────
+    // Paso 1: arrastrás la línea de referencia (algo que sabés que está a
+    // nivel). Al soltar, el punto final de esa línea queda fijo como el
+    // vértice del ángulo — la línea del techo arranca ahí sola.
+    // Paso 2: solo movés el mouse (línea de preview en vivo) y hacés UN
+    // click para fijar el ángulo — no hace falta click-y-arrastrar de nuevo.
     type Phase = "reference" | "slope";
     const [phase, setPhase] = useState<Phase>("reference");
     const [refLine, setRefLine] = useState<{ x: number; y: number }[] | null>(null);
-    const [slopeLine, setSlopeLine] = useState<{ x: number; y: number }[] | null>(null);
+    const [slopeAnchor, setSlopeAnchor] = useState<{ x: number; y: number } | null>(null);
+    const [slopeCursor, setSlopeCursor] = useState<{ x: number; y: number } | null>(null);
+    const [slopeFinal, setSlopeFinal] = useState<{ x: number; y: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -83,40 +83,52 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
 
     const handlePointerDown = (e: React.PointerEvent) => {
         const pt = getRelativePoint(e.clientX, e.clientY);
+
         if (phase === "reference") {
             setRefLine([pt, pt]);
-        } else {
-            setSlopeLine([pt, pt]);
+            setIsDragging(true);
+            return;
         }
-        setIsDragging(true);
+
+        // phase === "slope": un solo click fija el ángulo — no hace falta arrastrar.
+        if (slopeAnchor && !slopeFinal) {
+            setSlopeFinal(pt);
+        }
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDragging) return;
         const pt = getRelativePoint(e.clientX, e.clientY);
-        if (phase === "reference") {
+
+        if (phase === "reference" && isDragging) {
             setRefLine((prev) => (prev ? [prev[0], pt] : null));
-        } else {
-            setSlopeLine((prev) => (prev ? [prev[0], pt] : null));
+            return;
+        }
+
+        // Preview en vivo de la línea del techo, siguiendo el cursor hasta que se hace click.
+        if (phase === "slope" && slopeAnchor && !slopeFinal) {
+            setSlopeCursor(pt);
         }
     };
 
     const handlePointerUp = () => {
-        if (!isDragging) return;
-        setIsDragging(false);
-        // Al terminar de trazar la referencia, pasamos automáticamente al
-        // paso 2 (línea del techo).
-        if (phase === "reference" && refLine) {
-            setPhase("slope");
+        if (phase === "reference" && isDragging) {
+            setIsDragging(false);
+            if (refLine) {
+                // El punto final de la referencia pasa a ser el vértice del ángulo.
+                setSlopeAnchor(refLine[1]);
+                setSlopeCursor(refLine[1]);
+                setSlopeFinal(null);
+                setPhase("slope");
+            }
         }
     };
 
     // Ángulo de una línea respecto a la horizontal de la imagen, normalizado
     // a [-90, 90] (dirección "hacia la derecha") para poder restar dos
     // ángulos sin importar en qué sentido se trazó cada línea.
-    const lineAngle = (line: { x: number; y: number }[]) => {
-        let dx = line[1].x - line[0].x;
-        let dy = line[1].y - line[0].y;
+    const lineAngle = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
         if (dx < 0) {
             dx = -dx;
             dy = -dy;
@@ -125,23 +137,27 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     };
 
     const hasRefLine = !!refLine && (refLine[0].x !== refLine[1].x || refLine[0].y !== refLine[1].y);
-    const hasSlopeLine = !!slopeLine && (slopeLine[0].x !== slopeLine[1].x || slopeLine[0].y !== slopeLine[1].y);
+    const hasSlopeLine =
+        !!slopeAnchor && !!slopeFinal && (slopeAnchor.x !== slopeFinal.x || slopeAnchor.y !== slopeFinal.y);
 
     const measuredDegrees =
         hasRefLine && hasSlopeLine
-            ? Math.round(Math.abs(lineAngle(slopeLine!) - lineAngle(refLine!)) * 10) / 10
+            ? Math.round(Math.abs(lineAngle(slopeAnchor!, slopeFinal!) - lineAngle(refLine![0], refLine![1])) * 10) / 10
             : null;
 
     const matchedPitch = measuredDegrees !== null ? matchPitchCategory(measuredDegrees) : null;
 
     const clearReference = () => {
         setRefLine(null);
-        setSlopeLine(null);
+        setSlopeAnchor(null);
+        setSlopeCursor(null);
+        setSlopeFinal(null);
         setPhase("reference");
     };
 
     const clearSlope = () => {
-        setSlopeLine(null);
+        setSlopeFinal(null);
+        setSlopeCursor(slopeAnchor);
         setPhase("slope");
     };
 
@@ -284,8 +300,8 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                     </>
                                 ) : (
                                     <>
-                                        <strong className="text-[#e65100]">Step 2 of 2:</strong> now draw a line
-                                        following the slope of the roof.
+                                        <strong className="text-[#e65100]">Step 2 of 2:</strong> move your cursor
+                                        along the roof slope, then click once to set the angle.
                                     </>
                                 )}
                             </p>
@@ -327,20 +343,40 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                         </>
                                     )}
 
+                                    {/* Preview en vivo mientras se apunta (todavía no se hizo click) */}
+                                    {phase === "slope" && slopeAnchor && slopeCursor && !slopeFinal && (
+                                        <line
+                                            x1={slopeAnchor.x}
+                                            y1={slopeAnchor.y}
+                                            x2={slopeCursor.x}
+                                            y2={slopeCursor.y}
+                                            stroke="#e65100"
+                                            strokeWidth={3}
+                                            strokeDasharray="6 5"
+                                            strokeLinecap="round"
+                                            opacity={0.75}
+                                        />
+                                    )}
+
+                                    {/* Línea final, fijada con el click */}
                                     {hasSlopeLine && (
                                         <>
                                             <line
-                                                x1={slopeLine![0].x}
-                                                y1={slopeLine![0].y}
-                                                x2={slopeLine![1].x}
-                                                y2={slopeLine![1].y}
+                                                x1={slopeAnchor!.x}
+                                                y1={slopeAnchor!.y}
+                                                x2={slopeFinal!.x}
+                                                y2={slopeFinal!.y}
                                                 stroke="#e65100"
                                                 strokeWidth={3.5}
                                                 strokeLinecap="round"
                                             />
-                                            <circle cx={slopeLine![0].x} cy={slopeLine![0].y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
-                                            <circle cx={slopeLine![1].x} cy={slopeLine![1].y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
+                                            <circle cx={slopeFinal!.x} cy={slopeFinal!.y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
                                         </>
+                                    )}
+
+                                    {/* Vértice compartido entre las dos líneas */}
+                                    {slopeAnchor && (
+                                        <circle cx={slopeAnchor.x} cy={slopeAnchor.y} r={5.5} fill="#111827" stroke="#fff" strokeWidth={1.5} />
                                     )}
                                 </svg>
 
