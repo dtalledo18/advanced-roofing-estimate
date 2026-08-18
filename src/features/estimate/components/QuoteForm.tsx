@@ -6,7 +6,7 @@ import { RoofSection, RoofMaterial, RoofPitch } from "@/types/roofing";
 import { useRoofCalculator } from "@/hooks/useRoofCalculator";
 import { LeadForm } from "@/features/estimate/components/LeadForm";
 import { ConfirmationScreen } from "@/features/estimate/components/ConfirmationScreen";
-import { StreetViewPitchTool } from "@/features/estimate/components/StreetViewPitchTool";
+import { StreetViewPitchTool, StreetViewMeasurementState } from "@/features/estimate/components/StreetViewPitchTool";
 
 export interface QuoteFormProps {
     sections: RoofSection[];
@@ -78,6 +78,10 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
     const [step, setStep] = useState<Step>("quote");
     const [activeTabId, setActiveTabId] = useState<string>(sections[0]?.id || "");
     const [showStreetViewTool, setShowStreetViewTool] = useState(false);
+    // Guarda el estado de la herramienta (cámara + líneas dibujadas) por
+    // sección — así reabrir "Custom" para la misma sección vuelve exactamente
+    // a donde quedó, en vez de reiniciar todo desde cero.
+    const [streetViewDrafts, setStreetViewDrafts] = useState<Record<string, StreetViewMeasurementState>>({});
 
     const currentActiveId = sections.some((s) => s.id === activeTabId)
         ? activeTabId
@@ -388,6 +392,10 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
             {showStreetViewTool && activeSection && (
                 <StreetViewPitchTool
                     location={location}
+                    initialState={streetViewDrafts[activeSection.id]}
+                    onStateChange={(state) =>
+                        setStreetViewDrafts((prev) => ({ ...prev, [activeSection.id]: state }))
+                    }
                     onClose={() => setShowStreetViewTool(false)}
                     onConfirm={(degrees, matchedPitch) => {
                         updateActiveSection({ pitch: matchedPitch, pitchDegrees: degrees });

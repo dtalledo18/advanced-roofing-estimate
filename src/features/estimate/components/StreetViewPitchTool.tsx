@@ -10,8 +10,24 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { RoofPitch } from "@/types/roofing";
 
+// Estado completo de una sesión de medición — cámara + las dos líneas.
+// El padre (QuoteForm) lo guarda por sección para que reabrir el modal
+// vuelva exactamente a donde quedó, en vez de reiniciar todo desde cero.
+export interface StreetViewMeasurementState {
+    heading: number;
+    camPitch: number;
+    fov: number;
+    phase: "reference" | "slope";
+    refLine: { x: number; y: number }[] | null;
+    slopeAnchor: { x: number; y: number } | null;
+    slopeCursor: { x: number; y: number } | null;
+    slopeFinal: { x: number; y: number } | null;
+}
+
 interface StreetViewPitchToolProps {
     location: { lat: number; lng: number };
+    initialState?: StreetViewMeasurementState;
+    onStateChange: (state: StreetViewMeasurementState) => void;
     onConfirm: (degrees: number, matchedPitch: RoofPitch) => void;
     onClose: () => void;
 }
@@ -46,16 +62,27 @@ function matchPitchCategory(degrees: number): RoofPitch {
     return "high_steep";
 }
 
-export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetViewPitchToolProps) {
+// Ícono de flecha reutilizable para el D-pad — a nivel de módulo, no depende
+// de nada del componente padre, así que no debe recrearse en cada render.
+function Chevron({ direction }: { direction: "up" | "down" | "left" | "right" }) {
+    const rotation = { up: 0, right: 90, down: 180, left: 270 }[direction];
+    return (
+        <svg width="16" height="16" viewBox="0 0 24 24" style={{ transform: `rotate(${rotation}deg)` }}>
+            <path d="M12 5l7 12H5z" fill="currentColor" />
+        </svg>
+    );
+}
+
+export function StreetViewPitchTool({ location, initialState, onStateChange, onConfirm, onClose }: StreetViewPitchToolProps) {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
     const [status, setStatus] = useState<
         "loading" | "ok" | "no_coverage" | "request_denied" | "over_limit" | "error"
-    >("loading");
+    >(() => (apiKey ? "loading" : "error"));
     const [rawStatus, setRawStatus] = useState<string | null>(null);
-    const [heading, setHeading] = useState(0);
-    const [camPitch, setCamPitch] = useState(0); // ángulo de cámara (mirar arriba/abajo), no confundir con el pitch del techo
-    const [fov, setFov] = useState(90); // campo de visión — más chico = más zoom
+    const [heading, setHeading] = useState(initialState?.heading ?? 0);
+    const [camPitch, setCamPitch] = useState(initialState?.camPitch ?? 0); // ángulo de cámara (mirar arriba/abajo), no confundir con el pitch del techo
+    const [fov, setFov] = useState(initialState?.fov ?? 90); // campo de visión — más chico = más zoom
 
     // ─── Medición en dos pasos, ahora compartiendo vértice ─────────────────
     // Paso 1: arrastrás la línea de referencia (algo que sabés que está a
@@ -64,13 +91,25 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     // Paso 2: solo movés el mouse (línea de preview en vivo) y hacés UN
     // click para fijar el ángulo — no hace falta click-y-arrastrar de nuevo.
     type Phase = "reference" | "slope";
-    const [phase, setPhase] = useState<Phase>("reference");
-    const [refLine, setRefLine] = useState<{ x: number; y: number }[] | null>(null);
-    const [slopeAnchor, setSlopeAnchor] = useState<{ x: number; y: number } | null>(null);
-    const [slopeCursor, setSlopeCursor] = useState<{ x: number; y: number } | null>(null);
-    const [slopeFinal, setSlopeFinal] = useState<{ x: number; y: number } | null>(null);
+    const [phase, setPhase] = useState<Phase>(initialState?.phase ?? "reference");
+    const [refLine, setRefLine] = useState<{ x: number; y: number }[] | null>(initialState?.refLine ?? null);
+    const [slopeAnchor, setSlopeAnchor] = useState<{ x: number; y: number } | null>(initialState?.slopeAnchor ?? null);
+    const [slopeCursor, setSlopeCursor] = useState<{ x: number; y: number } | null>(initialState?.slopeCursor ?? null);
+    const [slopeFinal, setSlopeFinal] = useState<{ x: number; y: number } | null>(initialState?.slopeFinal ?? null);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Reportar cada cambio de estado hacia el padre, para que pueda
+    // guardarlo por sección y reabrir el modal donde quedó.
+    const onStateChangeRef = useRef(onStateChange);
+    useEffect(() => {
+        onStateChangeRef.current = onStateChange;
+    }, [onStateChange]);
+
+    useEffect(() => {
+        onStateChangeRef.current({ heading, camPitch, fov, phase, refLine, slopeAnchor, slopeCursor, slopeFinal });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [heading, camPitch, fov, phase, refLine, slopeAnchor, slopeCursor, slopeFinal]);
 
     const getRelativePoint = useCallback((clientX: number, clientY: number) => {
         const rect = containerRef.current?.getBoundingClientRect();
@@ -163,10 +202,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
 
     // 1. Verificar cobertura + calcular heading inicial hacia la propiedad
     useEffect(() => {
-        if (!apiKey) {
-            setStatus("error");
-            return;
-        }
+        if (!apiKey) return; // ya reflejado en el estado inicial de `status`
 
         const metadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${location.lat},${location.lng}&key=${apiKey}`;
 
@@ -177,9 +213,11 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                 console.log("[StreetViewPitchTool] metadata response:", data);
 
                 if (data.status === "OK") {
-                    const panoLocation = data.location as { lat: number; lng: number };
-                    const initialHeading = computeBearing(panoLocation, location);
-                    setHeading(Math.round(initialHeading));
+                    if (!initialState) {
+                        const panoLocation = data.location as { lat: number; lng: number };
+                        const initialHeading = computeBearing(panoLocation, location);
+                        setHeading(Math.round(initialHeading));
+                    }
                     setStatus("ok");
                     return;
                 }
@@ -205,6 +243,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                 console.error("[StreetViewPitchTool] metadata fetch failed:", err);
                 setStatus("error");
             });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [apiKey, location.lat, location.lng]);
 
     const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=${IMG_WIDTH}x${IMG_HEIGHT}&location=${location.lat},${location.lng}&heading=${heading}&pitch=${camPitch}&fov=${fov}&source=outdoor&key=${apiKey}`;
@@ -221,16 +260,6 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     const resetView = () => {
         setCamPitch(0);
         setFov(90);
-    };
-
-    // Ícono de flecha reutilizable para el D-pad
-    const Chevron = ({ direction }: { direction: "up" | "down" | "left" | "right" }) => {
-        const rotation = { up: 0, right: 90, down: 180, left: 270 }[direction];
-        return (
-            <svg width="16" height="16" viewBox="0 0 24 24" style={{ transform: `rotate(${rotation}deg)` }}>
-                <path d="M12 5l7 12H5z" fill="currentColor" />
-            </svg>
-        );
     };
 
     return (
