@@ -57,9 +57,93 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     const [camPitch, setCamPitch] = useState(0); // ángulo de cámara (mirar arriba/abajo), no confundir con el pitch del techo
     const [fov, setFov] = useState(90); // campo de visión — más chico = más zoom
 
-    const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
+    // ─── Medición en dos pasos ──────────────────────────────────────────────
+    // Paso 1: el usuario traza una línea sobre algo que SABE que está a nivel
+    // (una canaleta, el borde de una ventana, la base de la pared). Esto es
+    // la referencia horizontal real — no asumimos que el horizonte de la
+    // foto está nivelado, porque Street View puede tener roll de cámara.
+    // Paso 2: traza la línea siguiendo la pendiente del techo.
+    // El ángulo medido es el que hay ENTRE las dos líneas, no contra el
+    // borde crudo de la imagen.
+    type Phase = "reference" | "slope";
+    const [phase, setPhase] = useState<Phase>("reference");
+    const [refLine, setRefLine] = useState<{ x: number; y: number }[] | null>(null);
+    const [slopeLine, setSlopeLine] = useState<{ x: number; y: number }[] | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    const getRelativePoint = useCallback((clientX: number, clientY: number) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return { x: 0, y: 0 };
+        return {
+            x: ((clientX - rect.left) / rect.width) * IMG_WIDTH,
+            y: ((clientY - rect.top) / rect.height) * IMG_HEIGHT,
+        };
+    }, []);
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        const pt = getRelativePoint(e.clientX, e.clientY);
+        if (phase === "reference") {
+            setRefLine([pt, pt]);
+        } else {
+            setSlopeLine([pt, pt]);
+        }
+        setIsDragging(true);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isDragging) return;
+        const pt = getRelativePoint(e.clientX, e.clientY);
+        if (phase === "reference") {
+            setRefLine((prev) => (prev ? [prev[0], pt] : null));
+        } else {
+            setSlopeLine((prev) => (prev ? [prev[0], pt] : null));
+        }
+    };
+
+    const handlePointerUp = () => {
+        if (!isDragging) return;
+        setIsDragging(false);
+        // Al terminar de trazar la referencia, pasamos automáticamente al
+        // paso 2 (línea del techo).
+        if (phase === "reference" && refLine) {
+            setPhase("slope");
+        }
+    };
+
+    // Ángulo de una línea respecto a la horizontal de la imagen, normalizado
+    // a [-90, 90] (dirección "hacia la derecha") para poder restar dos
+    // ángulos sin importar en qué sentido se trazó cada línea.
+    const lineAngle = (line: { x: number; y: number }[]) => {
+        let dx = line[1].x - line[0].x;
+        let dy = line[1].y - line[0].y;
+        if (dx < 0) {
+            dx = -dx;
+            dy = -dy;
+        }
+        return (Math.atan2(dy, dx) * 180) / Math.PI;
+    };
+
+    const hasRefLine = !!refLine && (refLine[0].x !== refLine[1].x || refLine[0].y !== refLine[1].y);
+    const hasSlopeLine = !!slopeLine && (slopeLine[0].x !== slopeLine[1].x || slopeLine[0].y !== slopeLine[1].y);
+
+    const measuredDegrees =
+        hasRefLine && hasSlopeLine
+            ? Math.round(Math.abs(lineAngle(slopeLine!) - lineAngle(refLine!)) * 10) / 10
+            : null;
+
+    const matchedPitch = measuredDegrees !== null ? matchPitchCategory(measuredDegrees) : null;
+
+    const clearReference = () => {
+        setRefLine(null);
+        setSlopeLine(null);
+        setPhase("reference");
+    };
+
+    const clearSlope = () => {
+        setSlopeLine(null);
+        setPhase("slope");
+    };
 
     // 1. Verificar cobertura + calcular heading inicial hacia la propiedad
     useEffect(() => {
@@ -108,44 +192,6 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
     }, [apiKey, location.lat, location.lng]);
 
     const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=${IMG_WIDTH}x${IMG_HEIGHT}&location=${location.lat},${location.lng}&heading=${heading}&pitch=${camPitch}&fov=${fov}&source=outdoor&key=${apiKey}`;
-
-    // ─── Dibujo de la línea de medición ─────────────────────────────────────
-    const getRelativePoint = useCallback((clientX: number, clientY: number) => {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return { x: 0, y: 0 };
-        return {
-            x: ((clientX - rect.left) / rect.width) * IMG_WIDTH,
-            y: ((clientY - rect.top) / rect.height) * IMG_HEIGHT,
-        };
-    }, []);
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-        const pt = getRelativePoint(e.clientX, e.clientY);
-        setPoints([pt, pt]);
-        setIsDragging(true);
-    };
-
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDragging) return;
-        const pt = getRelativePoint(e.clientX, e.clientY);
-        setPoints((prev) => [prev[0], pt]);
-    };
-
-    const handlePointerUp = () => {
-        setIsDragging(false);
-    };
-
-    const hasLine = points.length === 2;
-    const measuredDegrees = hasLine
-        ? (() => {
-            const dx = points[1].x - points[0].x;
-            const dy = points[1].y - points[0].y;
-            if (dx === 0 && dy === 0) return 0;
-            return Math.round((Math.atan2(Math.abs(dy), Math.abs(dx)) * 180) / Math.PI * 10) / 10;
-        })()
-        : null;
-
-    const matchedPitch = measuredDegrees !== null ? matchPitchCategory(measuredDegrees) : null;
 
     // El paso de rotación/inclinación es proporcional al fov actual — con
     // zoom cerrado (fov chico) un salto fijo de 30°/10° te saca el techo de
@@ -230,8 +276,18 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                     {status === "ok" && (
                         <>
                             <p className="text-xs text-gray-500 leading-snug">
-                                Rotá/inclinná la cámara hasta ver bien el filo del techo, después trazá una línea
-                                (click y arrastrá) siguiendo esa pendiente.
+                                {phase === "reference" ? (
+                                    <>
+                                        <strong className="text-[#2563eb]">Paso 1 de 2:</strong> trazá una línea sobre
+                                        algo que sepas que está a nivel de verdad (una canaleta, el borde de una
+                                        ventana, la base de la pared) — esta es la referencia horizontal real.
+                                    </>
+                                ) : (
+                                    <>
+                                        <strong className="text-[#e65100]">Paso 2 de 2:</strong> ahora trazá la línea
+                                        siguiendo la pendiente del techo.
+                                    </>
+                                )}
                             </p>
 
                             <div
@@ -255,31 +311,35 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                     className="absolute inset-0 w-full h-full pointer-events-none"
                                     viewBox={`0 0 ${IMG_WIDTH} ${IMG_HEIGHT}`}
                                 >
-                                    {hasLine && (
+                                    {hasRefLine && (
                                         <>
-                                            {/* Línea de referencia horizontal, para comparar visualmente */}
                                             <line
-                                                x1={points[0].x}
-                                                y1={points[0].y}
-                                                x2={points[0].x + Math.abs(points[1].x - points[0].x) * Math.sign(points[1].x - points[0].x || 1)}
-                                                y2={points[0].y}
-                                                stroke="#ffffff"
-                                                strokeDasharray="4 4"
-                                                strokeWidth={1.5}
-                                                opacity={0.7}
-                                            />
-                                            {/* Línea trazada por el usuario */}
-                                            <line
-                                                x1={points[0].x}
-                                                y1={points[0].y}
-                                                x2={points[1].x}
-                                                y2={points[1].y}
-                                                stroke="#e65100"
-                                                strokeWidth={3}
+                                                x1={refLine![0].x}
+                                                y1={refLine![0].y}
+                                                x2={refLine![1].x}
+                                                y2={refLine![1].y}
+                                                stroke="#2563eb"
+                                                strokeWidth={3.5}
                                                 strokeLinecap="round"
                                             />
-                                            <circle cx={points[0].x} cy={points[0].y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
-                                            <circle cx={points[1].x} cy={points[1].y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
+                                            <circle cx={refLine![0].x} cy={refLine![0].y} r={5} fill="#2563eb" stroke="#fff" strokeWidth={1.5} />
+                                            <circle cx={refLine![1].x} cy={refLine![1].y} r={5} fill="#2563eb" stroke="#fff" strokeWidth={1.5} />
+                                        </>
+                                    )}
+
+                                    {hasSlopeLine && (
+                                        <>
+                                            <line
+                                                x1={slopeLine![0].x}
+                                                y1={slopeLine![0].y}
+                                                x2={slopeLine![1].x}
+                                                y2={slopeLine![1].y}
+                                                stroke="#e65100"
+                                                strokeWidth={3.5}
+                                                strokeLinecap="round"
+                                            />
+                                            <circle cx={slopeLine![0].x} cy={slopeLine![0].y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
+                                            <circle cx={slopeLine![1].x} cy={slopeLine![1].y} r={5} fill="#e65100" stroke="#fff" strokeWidth={1.5} />
                                         </>
                                     )}
                                 </svg>
@@ -369,7 +429,7 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                             </div>
 
                             {/* Resultado */}
-                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-3">
+                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
                                 <div>
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
                                         Measured Angle
@@ -388,13 +448,32 @@ export function StreetViewPitchTool({ location, onConfirm, onClose }: StreetView
                                         </p>
                                     </div>
                                 )}
-                                <button
-                                    onClick={() => setPoints([])}
-                                    disabled={!hasLine}
-                                    className="ml-auto px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold text-gray-600 cursor-pointer whitespace-nowrap"
-                                >
-                                    Clear Line
-                                </button>
+                                {!hasRefLine && (
+                                    <span className="text-[11px] font-bold text-[#2563eb] bg-blue-100 rounded-full px-2.5 py-1">
+                                        Falta trazar la referencia
+                                    </span>
+                                )}
+                                {hasRefLine && !hasSlopeLine && (
+                                    <span className="text-[11px] font-bold text-[#e65100] bg-orange-100 rounded-full px-2.5 py-1">
+                                        Falta trazar el techo
+                                    </span>
+                                )}
+                                <div className="flex gap-1.5 ml-auto">
+                                    <button
+                                        onClick={clearReference}
+                                        disabled={!hasRefLine}
+                                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold text-[#2563eb] cursor-pointer whitespace-nowrap"
+                                    >
+                                        Redo Reference
+                                    </button>
+                                    <button
+                                        onClick={clearSlope}
+                                        disabled={!hasSlopeLine}
+                                        className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold text-[#e65100] cursor-pointer whitespace-nowrap"
+                                    >
+                                        Redo Roof Line
+                                    </button>
+                                </div>
                             </div>
 
                             <p className="text-[10px] text-gray-400 italic leading-snug">
