@@ -49,7 +49,7 @@ export const ConfirmationScreen = ({ total }: ConfirmationScreenProps) => {
             {/* Footer de marca minimalista */}
             <div className="mt-12 pt-8 border-t border-gray-100">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em]">
-                    Advanced Roofing Team · Chicago, IL
+                    VCM · Chicago, IL
                 </p>
                 <p className="text-[10px] text-gray-300 mt-1">
                     advancedroofingteam.com

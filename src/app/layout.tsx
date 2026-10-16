@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Advanced Roofing - Sales Estimator Platform",
-  description: "Internal roof estimation tool for Advanced Roofing sales agents.",
+  title: "VCM - Sales Estimator Platform",
+  description: "Internal roof estimation tool for vcm sales agents.",
 };
 
 export default function RootLayout({

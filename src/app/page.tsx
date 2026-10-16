@@ -12,7 +12,19 @@ import { RoofSection, DetectedPitch } from "@/types/roofing";
 
 type AppStep = "map" | "quote";
 
-const SECTION_COLORS = ["#00589e", "#e65100", "#2e7d32", "#6a1b9a", "#c2185b"];
+// Paleta VCM — amarillo primario, mostaza, negro, fondos claros.
+// (Si luego pasamos estos valores a tokens de Tailwind en globals.css,
+// se reemplazan los hex arbitrarios por clases tipo bg-vcm-yellow.)
+// VCM_YELLOW      = #FDB913
+// VCM_YELLOW_DARK = #E0A10A
+// VCM_BLACK       = #0A0A0A
+// VCM_BG          = #EFEFEF
+// VCM_CHIP        = #E4E4E4
+
+// Colores de los polígonos sobre el satélite: la sección principal va en
+// amarillo VCM; el resto son colores que contrastan bien con la imagen aérea
+// y que no se confunden con el amarillo.
+const SECTION_COLORS = ["#FDB913", "#6a1b9a", "#2e7d32", "#c2185b", "#0288d1"];
 
 // Contador de IDs a nivel de módulo — evita usar Date.now()/crypto.randomUUID()
 // dentro del componente, que dispara el lint react-hooks/purity de React 19.
@@ -132,22 +144,22 @@ export default function SalesEstimatorPage() {
   const totalSqFt = sections.reduce((acc, s) => acc + s.areaSqFt, 0);
 
   return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-[#EFEFEF] flex flex-col text-[#0A0A0A]">
         {/* Header / Navbar */}
-        <header className="bg-[#00589e] text-white py-4 px-6 shadow-md border-b border-blue-900 sticky top-0 z-30">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-white p-2 rounded-lg text-[#00589e]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <header className="bg-[#0A0A0A] text-white py-4 px-6 sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="bg-[#FDB913] w-10 h-10 rounded-full flex items-center justify-center text-[#0A0A0A] shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                   <polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
               </div>
-              <div>
-                <h1 className="text-xl font-black uppercase tracking-wider leading-none">
-                  Advanced Roofing
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight leading-none truncate">
+                  Virtual Construction Management
                 </h1>
-                <p className="text-xs text-blue-100 font-medium tracking-tight">
+                <p className="text-xs text-white/60 font-medium mt-1">
                   Sales Agent Estimator Platform
                 </p>
               </div>
@@ -156,32 +168,36 @@ export default function SalesEstimatorPage() {
             {selectedAddress && (
                 <button
                     onClick={handleReset}
-                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border border-white/20 cursor-pointer"
+                    className="flex items-center gap-2 bg-[#FDB913] hover:bg-[#E0A10A] text-[#0A0A0A] px-5 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FDB913]"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
                     <path d="M21 3v5h-5" />
                   </svg>
-                  New Search
+                  New search
                 </button>
             )}
           </div>
         </header>
 
         {/* Stepper Indicator */}
-        <div className="bg-white border-b border-gray-200 py-3 px-6 shadow-xs">
-          <div className="max-w-7xl mx-auto flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+        <div className="bg-white border-b border-[#E4E4E4] py-3 px-6">
+          <div className="max-w-7xl mx-auto flex items-center justify-between text-sm font-semibold">
             <div className="flex items-center gap-3 sm:gap-6">
               <button
                   onClick={() => setStep("map")}
                   className={`flex items-center gap-2 transition-colors cursor-pointer ${
-                      step === "map" ? "text-[#00589e]" : "text-gray-400 hover:text-gray-700"
+                      step === "map" ? "text-[#0A0A0A]" : "text-gray-400 hover:text-[#0A0A0A]"
                   }`}
               >
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                                step === "map" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
-                            }`}>1</span>
-                <span>Address & Multi-Roof Boundaries</span>
+              <span
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      step === "map" ? "bg-[#FDB913] text-[#0A0A0A]" : "bg-[#E4E4E4] text-gray-500"
+                  }`}
+              >
+                1
+              </span>
+                <span>Address & roof boundaries</span>
               </button>
 
               <span className="text-gray-300">/</span>
@@ -191,24 +207,29 @@ export default function SalesEstimatorPage() {
                   onClick={() => selectedAddress && setStep("quote")}
                   className={`flex items-center gap-2 transition-colors ${
                       step === "quote"
-                          ? "text-[#00589e]"
+                          ? "text-[#0A0A0A]"
                           : selectedAddress
-                              ? "text-gray-400 hover:text-gray-700 cursor-pointer"
+                              ? "text-gray-400 hover:text-[#0A0A0A] cursor-pointer"
                               : "text-gray-300 cursor-not-allowed"
                   }`}
               >
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                                step === "quote" ? "bg-[#00589e] text-white" : "bg-gray-200 text-gray-600"
-                            }`}>2</span>
-                <span>Estimate & Specifications</span>
+              <span
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      step === "quote" ? "bg-[#FDB913] text-[#0A0A0A]" : "bg-[#E4E4E4] text-gray-500"
+                  }`}
+              >
+                2
+              </span>
+                <span>Estimate & specifications</span>
               </button>
             </div>
 
             {selectedAddress && (
-                <div className="hidden sm:flex items-center gap-2 text-gray-700 font-bold">
-                  <span className="text-gray-400 text-[10px] uppercase">Total Roof Area:</span>
-                  <span className="bg-blue-50 text-[#00589e] px-2.5 py-1 rounded border border-blue-100 font-black">
-                {totalSqFt.toLocaleString()} sq ft ({sections.length} {sections.length === 1 ? "section" : "sections"})
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="text-gray-500 text-xs">Total roof area</span>
+                  <span className="bg-[#0A0A0A] text-[#FDB913] px-3 py-1 rounded-full font-bold text-xs">
+                {totalSqFt.toLocaleString()} sq ft · {sections.length}{" "}
+                    {sections.length === 1 ? "section" : "sections"}
               </span>
                 </div>
             )}
@@ -219,44 +240,46 @@ export default function SalesEstimatorPage() {
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
           {step === "map" ? (
               <div className="space-y-6 animate-in fade-in duration-300">
-                <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
-                    Search Property Address
+                <section className="bg-white p-6 rounded-3xl">
+                  <label className="inline-block text-[10px] font-semibold text-[#0A0A0A] uppercase tracking-wider border border-[#0A0A0A] rounded-full px-3 py-1 mb-3">
+                    Property address
                   </label>
                   <AddressSearch
                       onAddressSelect={handleAddressSelect}
                       variant="default"
-                      placeholder="Type customer address to detect roof & estimate..."
+                      placeholder="Type the customer's address to detect the roof..."
                   />
                 </section>
 
                 {roofError && (
-                    <div className="p-4 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl">
-                      <p className="text-sm font-bold text-amber-800">
+                    <div className="p-4 bg-[#FDB913]/15 border-l-4 border-[#FDB913] rounded-r-2xl">
+                      <p className="text-sm font-semibold text-[#0A0A0A]">
                         {roofError === "no_building"
-                            ? "No roof or building could be clearly detected at this address. Please search another address or adjust points manually."
-                            : "Unable to retrieve solar data for this location. You can still outline the roof manually on the map."}
+                            ? "No roof or building could be clearly detected at this address. Search another address or outline the roof manually."
+                            : "Solar data isn't available for this location. You can still outline the roof manually on the map."}
                       </p>
                     </div>
                 )}
 
-                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between px-1">
-                    <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider flex items-center gap-2">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                        <circle cx="12" cy="10" r="3" />
-                      </svg>
-                      Roof Boundary Detection
+                <div className="bg-white p-4 sm:p-6 rounded-3xl space-y-4">
+                  <div className="flex items-center justify-between gap-3 px-1">
+                    <h2 className="text-lg font-bold tracking-tight flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-[#0A0A0A] text-[#FDB913] flex items-center justify-center shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </span>
+                      Roof boundary detection
                     </h2>
                     {selectedAddress && (
-                        <span className="text-xs font-semibold bg-blue-50 text-[#00589e] px-3 py-1 rounded-md border border-blue-100 truncate">
+                        <span className="text-xs font-medium bg-[#E4E4E4] text-[#0A0A0A] px-3 py-1.5 rounded-full truncate max-w-[50%]">
                     {selectedAddress}
                   </span>
                     )}
                   </div>
 
-                  <div className="min-h-[520px] rounded-xl overflow-hidden border border-gray-200 relative">
+                  <div className="min-h-[520px] rounded-2xl overflow-hidden relative">
                     <RoofMap
                         center={location}
                         zoom={mapZoom}
@@ -273,22 +296,20 @@ export default function SalesEstimatorPage() {
                     />
 
                     {isLoading && (
-                        <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 gap-3">
-                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#00589e] border-t-transparent"></div>
-                          <p className="text-sm font-bold text-[#00589e] uppercase tracking-wider">
-                            Analyzing roof structures...
-                          </p>
+                        <div className="absolute inset-0 bg-[#0A0A0A]/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 gap-3">
+                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FDB913] border-t-transparent"></div>
+                          <p className="text-sm font-semibold text-white">Analyzing roof structures...</p>
                         </div>
                     )}
                   </div>
 
                   {selectedAddress && !isLoading && sections.length > 0 && (
-                      <div className="pt-2">
+                      <div className="pt-2 flex justify-end">
                         <button
                             onClick={() => setStep("quote")}
-                            className="w-full py-5 bg-[#00589e] hover:bg-[#00437a] text-white font-black text-lg uppercase tracking-widest rounded-xl cursor-pointer transition-all active:scale-[0.99] shadow-lg flex items-center justify-center gap-3"
+                            className="w-full sm:w-auto px-10 py-4 bg-[#FDB913] hover:bg-[#E0A10A] text-[#0A0A0A] font-bold text-base rounded-full cursor-pointer transition-colors active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A0A0A]"
                         >
-                          Continue to Estimate Details →
+                          Continue to estimate details
                         </button>
                       </div>
                   )}
@@ -296,21 +317,23 @@ export default function SalesEstimatorPage() {
               </div>
           ) : (
               <div className="space-y-6 animate-in fade-in duration-300">
-                <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between gap-4 bg-white p-4 rounded-3xl">
                   <button
                       onClick={() => setStep("map")}
-                      className="flex items-center gap-2 text-gray-600 hover:text-[#00589e] font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors"
+                      className="flex items-center gap-2 text-[#0A0A0A] font-semibold text-sm cursor-pointer group"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <line x1="19" y1="12" x2="5" y2="12" />
-                      <polyline points="12 19 5 12 12 5" />
-                    </svg>
-                    Back to Map & Roof Boundaries
+                <span className="w-8 h-8 rounded-full bg-[#0A0A0A] text-[#FDB913] flex items-center justify-center group-hover:bg-[#FDB913] group-hover:text-[#0A0A0A] transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                  </svg>
+                </span>
+                    Back to map
                   </button>
 
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Selected Property</p>
-                    <p className="text-xs font-bold text-gray-800 truncate max-w-md">{selectedAddress}</p>
+                  <div className="text-right min-w-0">
+                    <p className="text-xs text-gray-500">Selected property</p>
+                    <p className="text-sm font-semibold truncate max-w-md">{selectedAddress}</p>
                   </div>
                 </div>
 

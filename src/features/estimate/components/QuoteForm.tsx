@@ -17,6 +17,16 @@ export interface QuoteFormProps {
 
 type Step = "quote" | "lead" | "confirmation";
 
+// Paleta VCM
+// VCM_YELLOW      = #FDB913
+// VCM_YELLOW_DARK = #E0A10A
+// VCM_BLACK       = #0A0A0A
+// VCM_BG          = #EFEFEF
+// VCM_CHIP        = #E4E4E4
+
+// Color de respaldo si una sección no trae color propio (mismo que SECTION_COLORS[0]).
+const FALLBACK_SECTION_COLOR = "#FDB913";
+
 // ─── Metadata de Pitch — incluye el ratio rise/run REAL de cada categoría ──────
 const ASPHALT_PITCHES: {
     value: RoofPitch;
@@ -133,6 +143,7 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
     const totalSqFt = sections.reduce((sum, s) => sum + s.areaSqFt, 0);
 
     const isTPO = activeSection?.material === "flat_tpo";
+    const hasCustomPitch = activeSection?.pitchDegrees !== undefined;
 
     const quoteSummary = {
         address,
@@ -142,14 +153,14 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white p-5 sm:p-8 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white p-5 sm:p-8 rounded-3xl">
             {/* ── Controles de Edición por Sección (Izquierda - 7 columnas) ── */}
-            <div className="lg:col-span-7 space-y-6 text-black">
+            <div className="lg:col-span-7 space-y-7 text-[#0A0A0A]">
                 <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
-                        Configure Roof Section ({sections.length})
+                    <label className="inline-block text-[10px] font-semibold text-[#0A0A0A] uppercase tracking-wider border border-[#0A0A0A] rounded-full px-3 py-1 mb-3">
+                        Roof sections ({sections.length})
                     </label>
-                    <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+                    <div className="flex flex-wrap gap-2 border-b border-[#E4E4E4] pb-4">
                         {sections.map((sec, idx) => {
                             const isActive = sec.id === currentActiveId;
                             const isDragging = draggedIndex === idx;
@@ -164,27 +175,27 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                                     onDrop={() => handleDrop(idx)}
                                     onDragEnd={handleDragEnd}
                                     onClick={() => setActiveTabId(sec.id)}
-                                    className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none ${
+                                    className={`pl-2.5 pr-3.5 py-2 rounded-full text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none ${
                                         isActive
-                                            ? "bg-[#00589e] text-white shadow-md scale-[1.02]"
-                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                            ? "bg-[#0A0A0A] text-white"
+                                            : "bg-[#E4E4E4] text-[#0A0A0A] hover:bg-[#d6d6d6]"
                                     } ${isDragging ? "opacity-40" : ""} ${
-                                        isDragOver ? "ring-2 ring-offset-1 ring-[#00589e]" : ""
+                                        isDragOver ? "ring-2 ring-offset-2 ring-[#FDB913]" : ""
                                     }`}
                                 >
                                     <span
-                                        className={`text-sm leading-none ${isActive ? "text-white/60" : "text-gray-400"}`}
+                                        className={`text-sm leading-none ${isActive ? "text-white/50" : "text-gray-400"}`}
                                         title="Drag to reorder"
                                     >
                                         ⠿
                                     </span>
                                     <span
-                                        className="w-2.5 h-2.5 rounded-full border border-white"
-                                        style={{ backgroundColor: sec.color || "#00589e" }}
+                                        className="w-2.5 h-2.5 rounded-full ring-1 ring-white"
+                                        style={{ backgroundColor: sec.color || FALLBACK_SECTION_COLOR }}
                                     />
                                     <span>{sec.name}</span>
-                                    <span className="text-[10px] opacity-80">
-                                        ({sec.areaSqFt.toLocaleString()} sq ft)
+                                    <span className={`text-[10px] ${isActive ? "text-white/60" : "text-gray-500"}`}>
+                                        {sec.areaSqFt.toLocaleString()} sq ft
                                     </span>
                                 </button>
                             );
@@ -193,39 +204,37 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                 </div>
 
                 {activeSection && (
-                    <div className="space-y-6 animate-in fade-in duration-200">
-                        <div className="flex flex-wrap items-center justify-between gap-4 bg-blue-50/40 border border-blue-100 p-4 rounded-xl">
-                            <div>
-                                <p className="text-xs text-[#00589e] font-bold uppercase tracking-wider">
-                                    Active Section
-                                </p>
+                    <div className="space-y-7 animate-in fade-in duration-200">
+                        <div className="flex flex-wrap items-end justify-between gap-4 bg-[#EFEFEF] p-5 rounded-2xl">
+                            <div className="min-w-0">
+                                <p className="text-xs text-gray-500 font-medium mb-1">Section name</p>
                                 <input
                                     type="text"
                                     value={activeSection.name}
                                     onChange={(e) => updateActiveSection({ name: e.target.value })}
-                                    className="text-lg font-black text-gray-900 bg-transparent border-b border-blue-200 focus:border-[#00589e] focus:outline-none py-0.5"
-                                    placeholder="Section Name"
+                                    className="text-xl font-bold tracking-tight text-[#0A0A0A] bg-transparent border-b-2 border-[#0A0A0A]/15 focus:border-[#FDB913] focus:outline-none py-0.5 max-w-full"
+                                    placeholder="Section name"
                                 />
                             </div>
 
                             <div className="text-right">
-                                <p className="text-xs text-gray-400 font-bold uppercase">Section Area</p>
-                                <p className="text-2xl font-black text-gray-900">
+                                <p className="text-xs text-gray-500 font-medium mb-1">Section area</p>
+                                <p className="text-2xl font-bold tracking-tight text-[#0A0A0A]">
                                     {activeSection.areaSqFt.toLocaleString()}{" "}
-                                    <span className="text-sm font-semibold text-gray-500">sq ft</span>
+                                    <span className="text-sm font-medium text-gray-500">sq ft</span>
                                 </p>
                             </div>
                         </div>
 
                         {/* Material */}
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Material Type for {activeSection.name}
+                            <label className="block text-sm font-semibold text-[#0A0A0A] mb-2.5">
+                                Material for {activeSection.name}
                             </label>
                             <div className="grid grid-cols-2 gap-3">
                                 {[
-                                    { value: "asphalt_shingle", label: "Asphalt Shingles" },
-                                    { value: "flat_tpo", label: "Flat Roof (TPO)" },
+                                    { value: "asphalt_shingle", label: "Asphalt shingles" },
+                                    { value: "flat_tpo", label: "Flat roof (TPO)" },
                                 ].map((m) => {
                                     const isSelected = activeSection.material === m.value;
                                     return (
@@ -238,13 +247,13 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                                                     pitch: m.value === "flat_tpo" ? "shallow" : activeSection.pitch,
                                                 })
                                             }
-                                            className={`relative py-3.5 px-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                                            className={`py-3.5 px-3 rounded-2xl border-2 transition-colors flex flex-col items-center gap-1 cursor-pointer text-sm ${
                                                 isSelected
-                                                    ? "border-[#00589e] bg-blue-50 text-[#00589e] shadow-sm font-black"
-                                                    : "border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200 font-bold"
+                                                    ? "border-[#FDB913] bg-[#FDB913] text-[#0A0A0A] font-bold"
+                                                    : "border-[#E4E4E4] bg-white text-gray-600 hover:border-[#0A0A0A]/30 font-semibold"
                                             }`}
                                         >
-                                            <span className="text-sm">{m.label}</span>
+                                            {m.label}
                                         </button>
                                     );
                                 })}
@@ -254,45 +263,48 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                         {/* Pitch / Inclinación (Si es Asphalt) ─────────────────────────── */}
                         {!isTPO && (
                             <div>
-                                <div className="flex items-center justify-between mb-3">
-                                    <label className="block text-sm font-semibold text-gray-700">
-                                        Roof Pitch (Steepness)
+                                <div className="flex items-center justify-between mb-2.5">
+                                    <label className="block text-sm font-semibold text-[#0A0A0A]">
+                                        Roof pitch
                                     </label>
-                                    {activeSection.pitchDegrees !== undefined && (
-                                        <span className="text-[11px] font-bold text-[#00589e] bg-blue-50 border border-blue-100 rounded-full px-2.5 py-0.5">
+                                    {hasCustomPitch && (
+                                        <span className="text-[11px] font-semibold text-[#FDB913] bg-[#0A0A0A] rounded-full px-3 py-1">
                                             Measured: {activeSection.pitchDegrees}°
                                         </span>
                                     )}
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                                     {ASPHALT_PITCHES.map((p) => {
-                                        const isSelected =
-                                            activeSection.pitch === p.value && activeSection.pitchDegrees === undefined;
+                                        const isSelected = activeSection.pitch === p.value && !hasCustomPitch;
                                         return (
                                             <button
                                                 key={p.value}
                                                 type="button"
                                                 onClick={() => updateActiveSection({ pitch: p.value, pitchDegrees: undefined })}
-                                                className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-all cursor-pointer ${
+                                                className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-colors cursor-pointer ${
                                                     isSelected
-                                                        ? "border-[#00589e] bg-blue-50 text-[#00589e] shadow-lg scale-[1.04]"
-                                                        : "border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-300 hover:bg-gray-100"
+                                                        ? "border-[#FDB913] bg-[#FDB913] text-[#0A0A0A]"
+                                                        : "border-[#E4E4E4] bg-white text-gray-400 hover:border-[#0A0A0A]/30"
                                                 }`}
                                             >
                                                 <RoofPitchIcon riseOverRun={p.riseOverRun} active={isSelected} />
                                                 <span
-                                                    className={`text-[13px] uppercase tracking-wider leading-tight text-center mt-1 font-black ${
-                                                        isSelected ? "text-[#00589e]" : "text-gray-600"
+                                                    className={`text-[13px] leading-tight text-center mt-1 font-bold ${
+                                                        isSelected ? "text-[#0A0A0A]" : "text-gray-700"
                                                     }`}
                                                 >
                                                     {p.label}
                                                 </span>
-                                                <span className="text-[11px] text-gray-500 mt-0.5 font-semibold">
+                                                <span
+                                                    className={`text-[11px] mt-0.5 font-medium ${
+                                                        isSelected ? "text-[#0A0A0A]/80" : "text-gray-500"
+                                                    }`}
+                                                >
                                                     {p.range}
                                                 </span>
                                                 <span
                                                     className={`text-[10px] mt-0.5 ${
-                                                        isSelected ? "text-[#00589e]/70" : "text-gray-400"
+                                                        isSelected ? "text-[#0A0A0A]/60" : "text-gray-400"
                                                     }`}
                                                 >
                                                     {p.degrees}
@@ -305,26 +317,30 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                                     <button
                                         type="button"
                                         onClick={() => setShowStreetViewTool(true)}
-                                        className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
-                                            activeSection.pitchDegrees !== undefined
-                                                ? "border-[#e65100] bg-orange-50 text-[#e65100] shadow-lg scale-[1.04]"
-                                                : "border-gray-300 bg-gray-50 text-gray-400 hover:border-gray-400 hover:bg-gray-100"
+                                        className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-colors cursor-pointer ${
+                                            hasCustomPitch
+                                                ? "border-[#0A0A0A] bg-[#0A0A0A] text-[#FDB913]"
+                                                : "border-dashed border-gray-300 bg-white text-gray-400 hover:border-[#0A0A0A]/40"
                                         }`}
                                     >
-                                        <CustomPitchIcon active={activeSection.pitchDegrees !== undefined} />
+                                        <CustomPitchIcon active={hasCustomPitch} />
                                         <span
-                                            className={`text-[13px] uppercase tracking-wider leading-tight text-center mt-1 font-black ${
-                                                activeSection.pitchDegrees !== undefined ? "text-[#e65100]" : "text-gray-600"
+                                            className={`text-[13px] leading-tight text-center mt-1 font-bold ${
+                                                hasCustomPitch ? "text-white" : "text-gray-700"
                                             }`}
                                         >
                                             Custom
                                         </span>
-                                        <span className="text-[11px] text-gray-500 mt-0.5 font-semibold">
-                                            {activeSection.pitchDegrees !== undefined
-                                                ? `${activeSection.pitchDegrees}°`
-                                                : "Street View"}
+                                        <span
+                                            className={`text-[11px] mt-0.5 font-medium ${
+                                                hasCustomPitch ? "text-[#FDB913]" : "text-gray-500"
+                                            }`}
+                                        >
+                                            {hasCustomPitch ? `${activeSection.pitchDegrees}°` : "Street View"}
                                         </span>
-                                        <span className="text-[10px] mt-0.5 text-gray-400">measure it</span>
+                                        <span className={`text-[10px] mt-0.5 ${hasCustomPitch ? "text-white/50" : "text-gray-400"}`}>
+                                            {hasCustomPitch ? "measure again" : "measure it"}
+                                        </span>
                                     </button>
                                 </div>
                             </div>
@@ -333,8 +349,8 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                         {/* Capas a remover */}
                         {!isTPO && (
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                    Existing Layers to Remove
+                                <label className="block text-sm font-semibold text-[#0A0A0A] mb-2.5">
+                                    Existing layers to remove
                                 </label>
                                 <div className="flex gap-2">
                                     {[1, 2, 3].map((n) => {
@@ -344,10 +360,10 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                                                 key={n}
                                                 type="button"
                                                 onClick={() => updateActiveSection({ layersToRemove: n })}
-                                                className={`flex-1 py-2 rounded-lg border-2 text-xs transition-all cursor-pointer ${
+                                                className={`flex-1 py-2.5 rounded-full border-2 text-sm transition-colors cursor-pointer ${
                                                     isSelected
-                                                        ? "border-[#00589e] bg-blue-50 text-[#00589e] font-black shadow-sm"
-                                                        : "border-gray-100 bg-gray-50 text-gray-500 font-bold hover:border-gray-200"
+                                                        ? "border-[#FDB913] bg-[#FDB913] text-[#0A0A0A] font-bold"
+                                                        : "border-[#E4E4E4] bg-white text-gray-600 font-semibold hover:border-[#0A0A0A]/30"
                                                 }`}
                                             >
                                                 {n} {n === 1 ? "layer" : "layers"}
@@ -362,31 +378,29 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
             </div>
 
             {/* ── Resumen Global Consolidado (Derecha - 5 columnas) ── */}
-            <div className="lg:col-span-5 bg-gray-50 p-6 rounded-2xl border border-gray-200 flex flex-col justify-between shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-[#00589e]" />
-
+            <div className="lg:col-span-5 bg-[#0A0A0A] text-white p-6 sm:p-7 rounded-3xl flex flex-col justify-between">
                 <div>
-                    <h3 className="text-base font-black text-gray-900 mb-4 uppercase tracking-tight border-b border-gray-200 pb-2 flex items-center justify-between">
-                        <span>Estimate Breakdown</span>
-                        <span className="text-xs font-bold text-[#00589e]">
-              {totalSqFt.toLocaleString()} sq ft
-            </span>
-                    </h3>
+                    <div className="flex items-center justify-between gap-3 mb-5">
+                        <h3 className="text-xl font-bold tracking-tight">Estimate breakdown</h3>
+                        <span className="text-xs font-semibold text-[#0A0A0A] bg-[#FDB913] rounded-full px-3 py-1 whitespace-nowrap">
+                            {totalSqFt.toLocaleString()} sq ft
+                        </span>
+                    </div>
 
-                    <div className="space-y-3 mb-6 max-h-56 overflow-y-auto pr-1">
+                    <div className="space-y-2 mb-6 max-h-56 overflow-y-auto pr-1">
                         {sections.map((sec) => (
                             <div
                                 key={sec.id}
-                                className="bg-white p-3 rounded-xl border border-gray-200 text-xs flex items-center justify-between shadow-2xs"
+                                className="bg-white/5 p-3 rounded-2xl text-xs flex items-center justify-between gap-3"
                             >
-                                <div className="flex items-center gap-2">
-                  <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: sec.color || "#00589e" }}
-                  />
-                                    <div>
-                                        <p className="font-bold text-gray-800">{sec.name}</p>
-                                        <p className="text-[10px] text-gray-400 capitalize">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <span
+                                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: sec.color || FALLBACK_SECTION_COLOR }}
+                                    />
+                                    <div className="min-w-0">
+                                        <p className="font-semibold text-white truncate">{sec.name}</p>
+                                        <p className="text-[10px] text-white/50 capitalize">
                                             {sec.material === "flat_tpo"
                                                 ? "Flat TPO"
                                                 : `Asphalt (${sec.pitch} pitch${
@@ -395,43 +409,45 @@ export const QuoteForm = ({ sections, onUpdateSections, address, location }: Quo
                                         </p>
                                     </div>
                                 </div>
-                                <span className="font-black text-gray-700">
-                  {sec.areaSqFt.toLocaleString()} sq ft
-                </span>
+                                <span className="font-semibold text-white/80 whitespace-nowrap">
+                                    {sec.areaSqFt.toLocaleString()} sq ft
+                                </span>
                             </div>
                         ))}
                     </div>
 
-                    <div className="space-y-2 border-t border-gray-200 pt-4 text-xs">
-                        <div className="flex justify-between text-gray-600 font-medium">
-                            <span>Materials Cost:</span>
-                            <span className="font-bold text-gray-800">${result.materialCost.toLocaleString()}</span>
+                    <div className="space-y-2.5 border-t border-white/10 pt-4 text-sm">
+                        <div className="flex justify-between text-white/60">
+                            <span>Materials</span>
+                            <span className="font-semibold text-white tabular-nums">
+                                ${result.materialCost.toLocaleString()}
+                            </span>
                         </div>
-                        <div className="flex justify-between text-gray-600 font-medium">
-                            <span>Labor & Installation:</span>
-                            <span className="font-bold text-gray-800">${result.laborCost.toLocaleString()}</span>
+                        <div className="flex justify-between text-white/60">
+                            <span>Labor & installation</span>
+                            <span className="font-semibold text-white tabular-nums">
+                                ${result.laborCost.toLocaleString()}
+                            </span>
                         </div>
                         {result.removalCost > 0 && (
-                            <div className="flex justify-between text-gray-600 font-medium">
-                                <span>Tear-off & Removal:</span>
-                                <span className="font-bold text-gray-800">${result.removalCost.toLocaleString()}</span>
+                            <div className="flex justify-between text-white/60">
+                                <span>Tear-off & removal</span>
+                                <span className="font-semibold text-white tabular-nums">
+                                    ${result.removalCost.toLocaleString()}
+                                </span>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t-2 border-dashed border-gray-200">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-1 mb-5">
-            <span className="text-gray-400 font-black text-xs uppercase tracking-widest">
-              Total Estimate
-            </span>
-                        <span className="text-3xl sm:text-4xl font-black text-[#00589e] tracking-tighter">
-              ${result.total.toLocaleString()}
-            </span>
-                    </div>
+                <div className="mt-6 pt-5 border-t border-white/10">
+                    <p className="text-sm text-white/60 mb-1">Total estimate</p>
+                    <p className="text-4xl sm:text-5xl font-bold text-[#FDB913] tracking-tight tabular-nums">
+                        ${result.total.toLocaleString()}
+                    </p>
 
-                    <p className="text-[10px] text-gray-400 mt-3 italic text-center leading-tight">
-                        *Multi-section estimate for {address || "selected property"}. <br />
+                    <p className="text-[11px] text-white/40 mt-4 leading-snug">
+                        Multi-section estimate for {address || "the selected property"}.
                     </p>
                 </div>
             </div>

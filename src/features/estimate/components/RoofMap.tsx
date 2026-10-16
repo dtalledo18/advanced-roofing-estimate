@@ -20,7 +20,19 @@ interface RoofMapProps {
     hideControls?: boolean;
 }
 
-const SECTION_COLORS = ["#00589e", "#e65100", "#2e7d32", "#6a1b9a", "#c2185b"];
+// Paleta VCM
+// VCM_YELLOW      = #FDB913
+// VCM_YELLOW_DARK = #E0A10A
+// VCM_BLACK       = #0A0A0A
+// VCM_CHIP        = #E4E4E4
+
+// Mismos colores que en page.tsx: la sección principal en amarillo VCM y el
+// resto en colores que contrastan con el satélite sin confundirse con el amarillo.
+const SECTION_COLORS = ["#FDB913", "#6a1b9a", "#2e7d32", "#c2185b", "#0288d1"];
+
+// Color del polígono de preview mientras se dibuja una sección nueva.
+const DRAWING_COLOR = "#FDB913";
+const DRAWING_VERTEX_STROKE = "#0A0A0A";
 
 // ─── Subcomponente: Manejo de Polígonos existentes y Recalibración ────────────
 function RoofPolygons({
@@ -225,9 +237,9 @@ const DrawingController = forwardRef<
             previewPolygonRef.current = new google.maps.Polygon({
                 map,
                 paths: points,
-                strokeColor: "#e65100",
+                strokeColor: DRAWING_COLOR,
                 strokeWeight: 2,
-                fillColor: "#e65100",
+                fillColor: DRAWING_COLOR,
                 fillOpacity: 0.25,
                 clickable: false,
             });
@@ -245,10 +257,10 @@ const DrawingController = forwardRef<
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 5,
-                        fillColor: "#e65100",
+                        fillColor: DRAWING_COLOR,
                         fillOpacity: 1,
-                        strokeColor: "#ffffff",
-                        strokeWeight: 1.5,
+                        strokeColor: DRAWING_VERTEX_STROKE,
+                        strokeWeight: 2,
                     },
                 })
         );
@@ -284,7 +296,7 @@ export const RoofMap = ({
     const [drawnPointCount, setDrawnPointCount] = useState(0);
 
     return (
-        <div className="w-full h-[500px] min-h-[500px] relative rounded-xl overflow-hidden border border-gray-200">
+        <div className="w-full h-[500px] min-h-[500px] relative rounded-2xl overflow-hidden">
             <GoogleMap
                 defaultCenter={center}
                 defaultZoom={zoom}
@@ -315,42 +327,51 @@ export const RoofMap = ({
             {/* Toolbar / Controles */}
             {!hideControls && (
                 <div className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-                    <div className="bg-white/95 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg border border-gray-200 pointer-events-auto flex items-center gap-2">
-                        {isDrawingMode ? (
-                            <span className="text-xs font-black text-[#e65100] uppercase tracking-wider">
-                                Click para marcar cada esquina · {drawnPointCount} punto{drawnPointCount === 1 ? "" : "s"}
+                    {isDrawingMode ? (
+                        <div className="bg-[#0A0A0A]/90 backdrop-blur-md pl-2 pr-4 py-2 rounded-full pointer-events-auto flex items-center gap-2.5">
+                            <span className="w-6 h-6 rounded-full bg-[#FDB913] text-[#0A0A0A] text-xs font-bold flex items-center justify-center tabular-nums">
+                                {drawnPointCount}
                             </span>
-                        ) : (
-                            <>
-                                <span className="text-xs font-black text-gray-700 uppercase tracking-wider">
-                                    Sections ({sections.length}):
-                                </span>
-                                <div className="flex gap-1.5 overflow-x-auto max-w-xs sm:max-w-md py-0.5">
-                                    {sections.map((sec, idx) => {
-                                        const isActive = sec.id === activeSectionId;
-                                        const color = sec.color || SECTION_COLORS[idx % SECTION_COLORS.length];
-                                        return (
-                                            <button
-                                                key={sec.id}
-                                                onClick={() => onSelectSection(sec.id)}
-                                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                                    isActive
-                                                        ? "bg-[#00589e] text-white shadow-sm"
-                                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                                }`}
-                                            >
-                                                <span
-                                                    className="w-2.5 h-2.5 rounded-full border border-white"
-                                                    style={{ backgroundColor: color }}
-                                                />
-                                                {sec.name}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                            <span className="text-sm font-medium text-white">
+                                Click each corner of the roof
+                                {drawnPointCount < 3 && (
+                                    <span className="text-white/60">
+                                        {" "}
+                                        · {3 - drawnPointCount} more to close the shape
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="bg-white/95 backdrop-blur-md p-1.5 rounded-full pointer-events-auto flex items-center gap-1.5 max-w-full">
+                            <span className="text-xs font-semibold text-gray-500 pl-2.5 pr-1 shrink-0">
+                                Sections ({sections.length})
+                            </span>
+                            <div className="flex gap-1 overflow-x-auto max-w-xs sm:max-w-md">
+                                {sections.map((sec, idx) => {
+                                    const isActive = sec.id === activeSectionId;
+                                    const color = sec.color || SECTION_COLORS[idx % SECTION_COLORS.length];
+                                    return (
+                                        <button
+                                            key={sec.id}
+                                            onClick={() => onSelectSection(sec.id)}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                                                isActive
+                                                    ? "bg-[#0A0A0A] text-white"
+                                                    : "bg-[#E4E4E4] text-[#0A0A0A] hover:bg-[#d6d6d6]"
+                                            }`}
+                                        >
+                                            <span
+                                                className="w-2.5 h-2.5 rounded-full ring-1 ring-white"
+                                                style={{ backgroundColor: color }}
+                                            />
+                                            {sec.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pointer-events-auto flex gap-2">
                         {isDrawingMode ? (
@@ -358,20 +379,20 @@ export const RoofMap = ({
                                 <button
                                     onClick={() => drawingRef.current?.undoLastPoint()}
                                     disabled={drawnPointCount === 0}
-                                    className="bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 border border-gray-300 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                                    className="bg-white hover:bg-[#E4E4E4] disabled:opacity-40 disabled:cursor-not-allowed text-[#0A0A0A] px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer"
                                 >
-                                    Undo Point
+                                    Undo point
                                 </button>
                                 <button
                                     onClick={() => drawingRef.current?.finish()}
                                     disabled={drawnPointCount < 3}
-                                    className="bg-[#2e7d32] hover:bg-[#1b5e20] disabled:opacity-40 disabled:cursor-not-allowed text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                                    className="bg-[#FDB913] hover:bg-[#E0A10A] disabled:opacity-40 disabled:cursor-not-allowed text-[#0A0A0A] px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer"
                                 >
-                                    Finish Shape
+                                    Finish shape
                                 </button>
                                 <button
                                     onClick={onCancelDrawing}
-                                    className="bg-gray-700 hover:bg-gray-800 text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                                    className="bg-[#0A0A0A] hover:bg-[#2a2a2a] text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
@@ -380,18 +401,24 @@ export const RoofMap = ({
                             <>
                                 <button
                                     onClick={onStartAddSection}
-                                    className="bg-[#00589e] hover:bg-[#004277] text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-all cursor-pointer"
+                                    className="bg-[#FDB913] hover:bg-[#E0A10A] text-[#0A0A0A] pl-2 pr-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer"
                                 >
-                                    + Add Roof Section
+                                    <span className="w-5 h-5 rounded-full bg-[#0A0A0A] text-[#FDB913] flex items-center justify-center">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                            <line x1="12" y1="5" x2="12" y2="19" />
+                                            <line x1="5" y1="12" x2="19" y2="12" />
+                                        </svg>
+                                    </span>
+                                    Add roof section
                                 </button>
 
                                 {sections.length > 1 && activeSectionId && (
                                     <button
                                         onClick={() => onRemoveSection(activeSectionId)}
-                                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                                        className="bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-full text-sm font-semibold transition-colors cursor-pointer"
                                         title="Delete active section"
                                     >
-                                        Delete Section
+                                        Delete section
                                     </button>
                                 )}
                             </>
