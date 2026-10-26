@@ -1,4 +1,5 @@
 // src/hooks/useRoofCalculator.ts
+import { CHICAGO_ROOFING_PRICES as PRICES } from "@/lib/constants";
 import { RoofingQuoteRequest, QuoteBreakdown } from "@/types/roofing";
 
 export const useRoofCalculator = () => {
@@ -8,20 +9,21 @@ export const useRoofCalculator = () => {
         let totalRemovalCost = 0;
 
         sections.forEach((section) => {
-            let baseRatePerSqFt = section.material === "flat_tpo" ? 6.5 : 4.5;
+            const squares = section.areaSqFt / PRICES.SQUARE_FOOT_UNIT;
+            const isTPO = section.material === "flat_tpo";
 
-            if (section.material === "asphalt_shingle") {
-                if (section.pitch === "medium") baseRatePerSqFt += 0.5;
-                if (section.pitch === "steep") baseRatePerSqFt += 1.2;
-                if (section.pitch === "high_steep") baseRatePerSqFt += 2.0;
-            }
+            const ratePerSq = isTPO
+                ? PRICES.MATERIALS.flat_tpo
+                : PRICES.LABOR_BY_PITCH[section.pitch as keyof typeof PRICES.LABOR_BY_PITCH]
+                ?? PRICES.LABOR_BY_PITCH.shallow;
 
-            const matCost = Math.round(section.areaSqFt * baseRatePerSqFt * 0.45);
-            const labCost = Math.round(section.areaSqFt * baseRatePerSqFt * 0.55);
-            const remCost =
-                section.material === "flat_tpo"
-                    ? 0
-                    : Math.round(section.areaSqFt * 0.75 * section.layersToRemove);
+            const baseCost = squares * ratePerSq;
+
+            const matCost = Math.round(baseCost * PRICES.MATERIAL_SHARE);
+            const labCost = Math.round(baseCost * PRICES.LABOR_SHARE);
+            const remCost = isTPO
+                ? 0
+                : Math.round(squares * PRICES.REMOVAL_PER_LAYER_SQ * section.layersToRemove);
 
             totalMaterialCost += matCost;
             totalLaborCost += labCost;
